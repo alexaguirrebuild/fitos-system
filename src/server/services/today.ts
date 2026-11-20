@@ -219,6 +219,12 @@ async function previewExercisesTx(tx: Tx, date: string, next: NextSession, readi
       if (suggestion && suggestion.kg != null && kg != null && suggestion.kg > kg)
         suggestion = { ...suggestion, kg, why: `${suggestion.why} Tope del ${capPct} % ${reason === "tobillo" ? "por el tobillo" : "del plan"}: ${esNum(kg)} kg.` };
     }
+    // Si dolió al día siguiente de la última pierna, el ejercicio que carga el tobillo pierde una serie (mínimo 1): sin top set.
+    if (flagged && ankle.rule.dropTopSet && suggestion) {
+      const sets = Math.max(1, suggestion.sets - 1);
+      suggestion = { ...suggestion, sets, repsTarget: suggestion.repsTarget.slice(0, sets),
+        why: `${suggestion.why} Tobillo: dolió al día siguiente de la última pierna, hoy sin top set.` };
+    }
     let ankleWarning: string | null = null;
     if (flagged) {
       const me = lib.find((e) => e.id === p.exerciseId);

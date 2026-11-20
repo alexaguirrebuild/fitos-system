@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Empty, Meter, PageHeader, Section } from "@/components/ui";
 import { sessionOrLogin } from "@/app/_server/session";
 import { day, int } from "@/lib/format";
-import { MEALS, getNutritionDay, listMealTemplates, type Meal } from "@/server/services/nutrition";
+import { MEALS, getNutritionDay, getTargets, listMealTemplates, type Meal } from "@/server/services/nutrition";
 import { addDays } from "@/server/time";
 import { AddFood } from "./add";
 import { Caffeine, DayTypeSwitch, LogRow, Shopping, Targets } from "./controls";
@@ -15,7 +15,9 @@ const PHASE: Record<string, string> = { calibracion: "Calibración", deficit: "D
 export default async function NutricionPage() {
   const userId = await sessionOrLogin("/nutricion");
   const d = await getNutritionDay(userId);
-  const [yesterday, templates] = await Promise.all([getNutritionDay(userId, { date: addDays(d.date, -1) }), listMealTemplates(userId, { dayType: d.dayType })]);
+  const [yesterday, templates, targets] = await Promise.all([
+    getNutritionDay(userId, { date: addDays(d.date, -1) }), listMealTemplates(userId, { dayType: d.dayType }), getTargets(userId, { date: d.date }),
+  ]);
   const yMeals = MEALS.filter((m) => yesterday.byMeal[m]).map((m) => ({ meal: m, label: MEAL_LABEL[m], kcal: Math.round(yesterday.byMeal[m]!.kcal), items: yesterday.byMeal[m]!.items }));
   const t = d.target;
 
@@ -81,7 +83,7 @@ export default async function NutricionPage() {
       </Section>
 
       <Section title="Objetivos" id="objetivos">
-        <Targets phase={d.phase ? PHASE[d.phase] : null} />
+        <Targets phase={d.phase ? PHASE[d.phase] : null} current={targets} />
       </Section>
 
       <Section title="Compra" id="compra">

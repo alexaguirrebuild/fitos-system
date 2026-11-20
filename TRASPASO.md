@@ -7,16 +7,16 @@ Fecha: 2026-11-20. Repo local en `~/Documents/sistema-fisico` (git, sin remoto, 
 | Pieza | Estado | Cómo se comprobó |
 |---|---|---|
 | Motor científico (`src/engine`) | Hecho | 47 tests; varios reproducen cifras de los Excels |
-| Esquema `fit` + RLS (5 migraciones) | Hecho | Aplicado en Postgres embebido (PGlite); 8 tests de aislamiento |
+| Esquema `fit` + RLS (6 migraciones) | Hecho | Aplicado en Postgres embebido (PGlite); 8 tests de aislamiento |
 | Importación del histórico | Hecho | Export real del 15-nov: 102 sesiones, 2.072 series, 0 descartadas, 586/655 ejercicios enlazados, 15 check-ins. Idempotente |
 | Catálogo | Hecho | 148 ejercicios, 2 programas, 58 términos, 80 alimentos (41 con precio de Mercadona del 20-nov; Lidl sin precio) |
 | Servicios (entreno, plan, bienestar, analítica, nutrición, cardio, salud, medios) | Hecho | Tests por área sobre PGlite |
-| Vista «Hoy» y 62 herramientas MCP | Hecho | Tests a través del endpoint MCP real con token |
+| Vista «Hoy» y 63 herramientas MCP | Hecho | Tests a través del endpoint MCP real con token |
 | OAuth 2.1 (registro dinámico, PKCE, rotación) | Hecho | 51 tests; flujo completo con el cliente del SDK MCP |
 | PWA (12 rutas) | Hecho | `next build` compila; recorrido real con Playwright a 390 px con el histórico cargado; capturas en `docs/capturas/` |
 | Cola sin conexión para series | Hecho | Probada cortando la red |
 
-Suite: 259 de 260 tests. El rojo es `tests/mcp.test.ts:167`, una aserción que quedó desfasada al añadir herramientas (el código es correcto). Arreglo de tres líneas pendiente del OK de Alex.
+Suite: 266 de 266 tests en verde; tipos y build limpios.
 
 ## Qué NO está verificado
 
@@ -44,8 +44,6 @@ Suite: 259 de 260 tests. El rojo es `tests/mcp.test.ts:167`, una aserción que q
 
 - Vídeos: la subida pasa por el servidor. En Vercel el cuerpo máximo es 4,5 MB; para vídeos reales hace falta subida directa del navegador a Drive.
 - Sin límite de peticiones en `/api/mcp` ni `/oauth/token`.
-- Cola sin conexión: un reenvío guarda la hora del reenvío y puede duplicar una serie si la respuesta se perdió y pasan más de 20 s (falta id de cliente en el backend).
-- «Quitar el top set si el tobillo dolió» es un aviso; no retira la serie.
 - La lista de la compra marca si se pasa de presupuesto, pero no recorta. Lidl sin precios.
 - Faltan en el catálogo: carne picada magra, claras, queso batido 0 %, avena, whey, fruta y verdura fresca (alta manual o escaneo).
 - No hay pantalla para crear comidas ancla ni para editar bloques de horario sueltos (se rehace en el onboarding).

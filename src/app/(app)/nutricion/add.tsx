@@ -104,7 +104,7 @@ function Grams({ food, onDone }: { food: Food; onDone: (text: string) => void })
 
   const submit = () => {
     if (g <= 0 || g > 5000) return setError(`Pon los ${unit === "ml" ? "mililitros" : "gramos"}.`);
-    const input: LogFoodInput = { foodId: food.id, grams: g, ...(meal ? { meal } : {}), ...(food.barcode ? { source: "barcode" as const } : {}) };
+    const input: LogFoodInput = { foodId: food.id, grams: g, ...(meal ? { meal } : {}), ...(food.barcode ? { source: "barcode" as const } : {}), clientId: crypto.randomUUID(), loggedAt: new Date().toISOString() };
     const label = `${food.name} · ${int(g)} ${unit}`;
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       queueAdd("food", input, label);

@@ -3,10 +3,9 @@
 /**
  * Cola sin conexión para series y comidas.
  * Lo que no llega al servidor por un fallo de red se guarda en localStorage y se reintenta al volver la conexión.
- * Límites conocidos (el backend no admite id de cliente ni hora de la serie):
- *  - la hora guardada es la del reenvío, no la del momento en que se hizo la serie;
- *  - si la petición llegó pero la respuesta se perdió, el reenvío puede duplicar (el servidor solo descarta
- *    la serie idéntica en menos de 20 s). Cada elemento lleva un id de cliente para no reenviarse dos veces desde aquí.
+ * Cada serie o comida lleva, desde que se crea (antes del primer intento de envío), un `clientId` y la hora real
+ * (`doneAt` / `loggedAt`). El servidor no inserta dos veces el mismo `clientId`, así que reenviar es seguro aunque la
+ * petición original llegara y se perdiera la respuesta; y la hora guardada es la del momento, no la del reenvío.
  */
 
 export type QueueKind = "set" | "food";

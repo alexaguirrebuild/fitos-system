@@ -327,6 +327,46 @@ describe("entreno: de la sesión a la progresión", () => {
     expect(over.warnings.join(" ")).toContain("tope de 92,5 kg");
   });
 
+  it("dolor al día siguiente de pierna: la sentadilla pierde una serie y la prensa no", async () => {
+    const leg = ok(await logSet(a, { exercise: "sentadilla", kg: 90, reps: 5, rir: 2, date: "2026-12-01" }, db));
+    await finishWorkout(a, { workoutId: leg.workoutId, srpe: 7, durationMin: 50 }, db);
+    const base = await startWorkout(a, { date: "2026-12-20", sessionTemplateId: piernaA }, db);
+    const baseSets = { sentadilla: block(base, "sentadilla").suggestion!.sets, prensa: block(base, "prensa").suggestion!.sets };
+    expect(baseSets.sentadilla).toBeGreaterThan(1);
+    await finishWorkout(a, { workoutId: base.workout.id, srpe: 5, durationMin: 5 }, db);
+
+    await logInjuryPain(a, { zone: "tobillo", pain: 5, moment: "dia_siguiente", date: "2026-12-02" }, db);
+    const v = await startWorkout(a, { date: "2026-12-21", sessionTemplateId: piernaA }, db);
+    expect(v.ankle.rule.dropTopSet).toBe(true);
+    const squat = block(v, "sentadilla");
+    expect(squat.suggestion!.sets).toBe(baseSets.sentadilla - 1);
+    expect(squat.suggestion!.repsTarget).toHaveLength(squat.suggestion!.sets);
+    expect(squat.suggestion!.why).toContain("Tobillo: dolió al día siguiente de la última pierna, hoy sin top set.");
+    expect(block(v, "prensa").suggestion!.sets).toBe(baseSets.prensa);
+    expect(block(v, "prensa").suggestion!.why).not.toContain("sin top set");
+  });
+
+  it("cola sin conexión: el mismo clientId no inserta otra serie y la hora real se guarda", async () => {
+    const v = await startWorkout(a, { date: "2026-11-12" }, db);
+    const doneAt = "2026-11-12T10:15:00.000Z";
+    const first = ok(await logSet(a, { workoutId: v.workout.id, exercise: "curl-biceps", kg: 20, reps: 10, rir: 2, clientId: "c-1", doneAt }, db));
+    expect(first.duplicate).toBe(false);
+    expect(new Date(first.set.doneAt!).toISOString()).toBe(doneAt);
+    expect(first.set.setIndex).toBe(1);
+    const before = await count(a, "workout_sets");
+    // Reenvío (la respuesta se perdió): mismo clientId, aunque pasen más de 20 s y cambie la carga: no se escribe.
+    const again = ok(await logSet(a, { workoutId: v.workout.id, exercise: "curl-biceps", kg: 25, reps: 8, clientId: "c-1" }, db));
+    expect(again.duplicate).toBe(true);
+    expect(again.set.id).toBe(first.set.id);
+    expect(again.set).toMatchObject({ kg: 20, reps: 10 });
+    expect(await count(a, "workout_sets")).toBe(before);
+    // Otro clientId sí inserta; y la fecha de la sesión no cambia con doneAt.
+    const next = ok(await logSet(a, { workoutId: v.workout.id, exercise: "curl-biceps", kg: 20, reps: 9, rir: 1, clientId: "c-2", doneAt: "2026-11-12T10:18:00.000Z", force: true }, db));
+    expect(next.duplicate).toBe(false);
+    expect(await count(a, "workout_sets")).toBe(before + 1);
+    expect((await getWorkoutView(a, v.workout.id, db)).workout.date).toBe("2026-11-12");
+  });
+
   it("material: compara rodilleras con y sin, y dice que la muestra es pequeña", async () => {
     const { workout } = await startWorkout(a, { date: "2026-11-10", sessionTemplateId: piernaA }, db);
     const s = await finishWorkout(a, { workoutId: workout.id, srpe: 6, durationMin: 50, kneeSleeves: false }, db);

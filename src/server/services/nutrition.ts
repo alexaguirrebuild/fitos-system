@@ -81,6 +81,7 @@ type TargetRow = {
   id: string; valid_from: string; phase: NutritionPhase; tdee: number; tdee_method: NutritionTarget["tdeeMethod"]; lean_kg: number | null;
   rate_pct_week: number; avg_kcal: number; on_off_spread: number; on_kcal: number; on_protein_g: number; on_carbs_g: number; on_fat_g: number;
   off_kcal: number; off_protein_g: number; off_carbs_g: number; off_fat_g: number; reason: string | null;
+  protein_per_lean_kg?: number; fat_per_kg?: number;
 };
 
 const toTarget = (r: TargetRow): NutritionTarget => ({
@@ -94,6 +95,40 @@ const toTarget = (r: TargetRow): NutritionTarget => ({
 export async function currentTargetTx(tx: Tx, date: string): Promise<NutritionTarget | null> {
   const r = await tx.query<TargetRow>("select * from fit.nutrition_targets where valid_from <= $1::date order by valid_from desc limit 1", [date]);
   return r[0] ? toTarget(r[0]) : null;
+}
+
+export const GetTargetsInput = z.object({
+  date: IsoDate.optional().describe("Día para el que se piden los objetivos (AAAA-MM-DD). Por defecto, hoy."),
+});
+export type GetTargetsInput = z.input<typeof GetTargetsInput>;
+
+export type GetTargetsResult = { date: string; target: NutritionTarget; explain: string[] };
+
+/** Objetivos vigentes en un día, con las frases que explican de dónde salen. Solo lectura: no calcula ni guarda nada. null si no hay. */
+export async function getTargets(userId: string, input: GetTargetsInput = {}, db?: Db): Promise<GetTargetsResult | null> {
+  const i = parseInput(GetTargetsInput, input);
+  return withUser(userId, async (tx) => {
+    const a = await athleteRow(tx);
+    const date = i.date ?? todayIn(a.timezone);
+    const row = (await tx.query<TargetRow>("select * from fit.nutrition_targets where valid_from <= $1::date order by valid_from desc limit 1", [date]))[0];
+    if (!row) return null;
+    const t = toTarget(row);
+    const line = (m: Macros) => `${r0(m.kcal)} kcal · proteína ${r0(m.proteinG)} g · hidratos ${r0(m.carbsG)} g · grasa ${r0(m.fatG)} g`;
+    const explain: string[] = [];
+    explain.push(`Vigentes desde el ${t.validFrom}, fase ${t.phase}.`);
+    explain.push(t.tdeeMethod === "medido" ? `Gasto: ${r0(t.tdee)} kcal, medido con tu comida anotada y la tendencia de peso.`
+      : t.tdeeMethod === "mifflin" ? `Gasto: ${r0(t.tdee)} kcal, estimado (Mifflin-St Jeor × 1,55) hasta poder medirlo.`
+      : `Gasto: ${r0(t.tdee)} kcal, puesto a mano.`);
+    const deficit = r0(t.tdee - t.avgKcal);
+    explain.push(t.ratePctWeek > 0 ? `Ritmo: ${es(t.ratePctWeek)} % del peso por semana.` : "Ritmo: 0 % (mantenimiento).");
+    explain.push(deficit > 0 ? `Déficit: ${deficit} kcal al día sobre el gasto (media ${r0(t.avgKcal)} kcal).` : `Sin déficit: media de ${r0(t.avgKcal)} kcal al día.`);
+    explain.push(`Proteína: ${es(row.protein_per_lean_kg ?? 2.3)} g por kg de masa magra${t.leanKg != null ? ` (${es(t.leanKg)} kg)` : ""}. Grasa: ${es(row.fat_per_kg ?? 0.8)} g por kg de peso. El resto, hidratos.`);
+    explain.push(`Día On: ${line(t.on)}.`);
+    explain.push(`Día Off: ${line(t.off)}.`);
+    explain.push(`Reparto On/Off: ±${r0(t.onOffSpread * 100)} % alrededor de la media.`);
+    if (t.reason) explain.push(t.reason);
+    return { date, target: t, explain };
+  }, db);
 }
 
 export const RecalcTargetsInput = z.object({
@@ -574,12 +609,14 @@ export const LogFoodInput = z.object({
   carbsG: macroG.optional().describe("Gramos de hidratos, si se anotan a mano."),
   fatG: macroG.optional().describe("Gramos de grasa, si se anotan a mano."),
   source: z.enum(["app", "barcode", "muse", "plantilla", "import"]).optional().describe("Origen del apunte. Por defecto, app (o barcode si viene con código)."),
+  clientId: z.string().min(1).max(64).optional().describe("Id generado por el cliente (cola sin conexión). Si ya existe para este atleta, no se vuelve a anotar."),
+  loggedAt: IsoDateTime.optional().describe("Hora real de la comida (ISO 8601). Por defecto, el momento del registro."),
 });
 export type LogFoodInput = z.input<typeof LogFoodInput>;
 
 export type LogFoodResult =
   | { ok: false; problems: string[] }
-  | { ok: true; log: FoodLog; day: DayTotals; warnings: string[] };
+  | { ok: true; log: FoodLog; day: DayTotals; warnings: string[]; duplicate?: boolean };
 
 function mealByHour(time: string): Meal {
   const h = Number(time.slice(0, 2));
@@ -588,11 +625,13 @@ function mealByHour(time: string): Meal {
 
 async function insertLogTx(tx: Tx, userId: string, v: {
   date: string; meal: Meal; foodId: string | null; description: string | null; grams: number | null; m: Macros; estimated: boolean; source: FoodLog["source"];
+  loggedAt?: string | null; clientId?: string | null;
 }): Promise<FoodLogRow> {
   const rows = await tx.query<FoodLogRow>(
-    `insert into fit.food_logs (user_id, date, meal, food_id, description, grams, kcal, protein_g, carbs_g, fat_g, estimated, source)
-     values ($1::uuid, $2::date, $3, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12) returning *`,
-    [userId, v.date, v.meal, v.foodId, v.description, v.grams, r1(v.m.kcal), r1(v.m.proteinG), r1(v.m.carbsG), r1(v.m.fatG), v.estimated, v.source],
+    `insert into fit.food_logs (user_id, date, meal, food_id, description, grams, kcal, protein_g, carbs_g, fat_g, estimated, source, logged_at, client_id)
+     values ($1::uuid, $2::date, $3, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, coalesce($13::timestamptz, now()), $14) returning *`,
+    [userId, v.date, v.meal, v.foodId, v.description, v.grams, r1(v.m.kcal), r1(v.m.proteinG), r1(v.m.carbsG), r1(v.m.fatG), v.estimated, v.source,
+      v.loggedAt ?? null, v.clientId ?? null],
   );
   return rows[0];
 }
@@ -618,6 +657,15 @@ export async function logFood(userId: string, input: LogFoodInput, db?: Db, fetc
   }
 
   return withUser(userId, async (tx): Promise<LogFoodResult> => {
+    // Reenvío de la cola sin conexión: si el id de cliente ya existe, se devuelve ese apunte y no se escribe nada.
+    if (i.clientId) {
+      const dup = (await tx.query<FoodLogRow>(
+        "select l.*, f.name as food_name from fit.food_logs l left join fit.foods f on f.id = l.food_id where l.client_id = $1", [i.clientId]))[0];
+      if (dup) {
+        const a = await athleteRow(tx);
+        return { ok: true, log: toLog(dup), day: await dayTotalsTx(tx, dup.date, todayIn(a.timezone)), warnings: ["Ese apunte ya estaba registrado (mismo id de cliente): no se ha anotado otra vez."], duplicate: true };
+      }
+    }
     let food = scanned;
     if (i.foodId) {
       const rows = await tx.query<FoodRow>("select * from fit.foods where id = $1::uuid", [i.foodId]);
@@ -645,11 +693,13 @@ export async function logFood(userId: string, input: LogFoodInput, db?: Db, fetc
 
     const a = await athleteRow(tx);
     const today = todayIn(a.timezone);
-    const date = i.date ?? today;
-    const meal = i.meal ?? (i.date && i.date !== today ? "comida" : mealByHour(localTimeIn(a.timezone, new Date())));
+    // Con hora real (cola sin conexión) el día y la comida salen de esa hora, no del momento del reenvío.
+    const at = i.loggedAt ? new Date(i.loggedAt) : new Date();
+    const date = i.date ?? todayIn(a.timezone, at);
+    const meal = i.meal ?? (date !== today && !i.loggedAt ? "comida" : mealByHour(localTimeIn(a.timezone, at)));
     const row = await insertLogTx(tx, userId, {
       date, meal, foodId: food?.id ?? null, description: i.description ?? food?.name ?? null, grams: i.grams ?? null, m, estimated,
-      source: i.source ?? (scanned ? "barcode" : "app"),
+      source: i.source ?? (scanned ? "barcode" : "app"), loggedAt: i.loggedAt ?? null, clientId: i.clientId ?? null,
     });
     return { ok: true, log: toLog(row, food?.name ?? null), day: await dayTotalsTx(tx, date, today), warnings };
   }, db);

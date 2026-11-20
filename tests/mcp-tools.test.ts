@@ -20,7 +20,7 @@ const ALL: Scope[] = ["mcp:read", "mcp:log", "mcp:plan"];
 
 const READ = [
   "get_today", "get_plan", "get_next_session", "get_workout", "list_workouts", "get_exercise_history", "search_exercises", "find_exercise_alternatives",
-  "get_nutrition_day", "search_foods", "lookup_barcode", "get_progress", "get_load_status", "get_volume_status", "get_cardio_week", "get_activity",
+  "get_nutrition_day", "get_nutrition_targets", "search_foods", "lookup_barcode", "get_progress", "get_load_status", "get_volume_status", "get_cardio_week", "get_activity",
   "get_checkins", "list_annotations", "get_glossary", "get_onboarding_status", "list_videos", "get_gear_patterns", "list_meal_templates", "list_program_templates",
 ];
 const LOG = [
@@ -123,19 +123,19 @@ describe("catálogo de herramientas", () => {
   it("tools/list filtra por scope", async () => {
     const list = async (scope: Scope[]) => ((await rpc((await tokenFor(scope)).access, "tools/list")).result!.tools as Array<{ name: string; annotations: Record<string, boolean> }>);
     const read = await list(["mcp:read"]);
-    expect(read).toHaveLength(26);
+    expect(read).toHaveLength(27);
     expect(read.map((t) => t.name)).toEqual(expect.arrayContaining(READ));
     expect(read.every((t) => t.annotations.readOnlyHint)).toBe(true);
     expect(read.map((t) => t.name)).not.toContain("log_set");
 
     const log = await list(["mcp:read", "mcp:log"]);
-    expect(log).toHaveLength(50);
+    expect(log).toHaveLength(51);
     expect(log.map((t) => t.name)).not.toContain("activate_program");
     expect(log.find((t) => t.name === "delete_set")!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     expect(log.find((t) => t.name === "log_set")!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false });
 
     const all = await list(ALL);
-    expect(all).toHaveLength(62);
+    expect(all).toHaveLength(63);
     expect(all.map((t) => t.name)).toEqual(expect.arrayContaining([...READ, ...LOG, ...PLAN]));
   });
 

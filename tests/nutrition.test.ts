@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { asSystem, openMemoryDb, withUser, type Db } from "@/db/client";
 import { adaptiveTdee, caffeineMaxMg, mifflin, weightTrend } from "@/engine/nutrition";
 import {
-  buildShoppingList, deleteFoodLog, getDayType, getNutritionDay, listMealTemplates, logCaffeine, logFood, logMealTemplate, recalcTargets,
+  buildShoppingList, deleteFoodLog, getDayType, getNutritionDay, getTargets, listMealTemplates, logCaffeine, logFood, logMealTemplate, recalcTargets,
   repeatMeal, saveMealTemplate, setDayType, updateFoodLog, weeklyNutritionReview,
 } from "@/server/services/nutrition";
 import { addDays } from "@/server/time";
@@ -185,6 +185,50 @@ describe("logFood", () => {
     const del = await deleteFoodLog(cal, { logId: pollo.id }, db);
     expect(del.day.totals.kcal).toBe(540);
     await expect(deleteFoodLog(cal, { logId: pollo.id }, db)).rejects.toMatchObject({ code: "no_encontrado" });
+  });
+});
+
+describe("getTargets", () => {
+  it("sin objetivos devuelve null y no escribe nada", async () => {
+    const before = await count(bare, "nutrition_targets");
+    expect(await getTargets(bare, { date: D }, db)).toBeNull();
+    expect(await count(bare, "nutrition_targets")).toBe(before);
+  });
+
+  it("devuelve el vigente con sus frases, sin recalcular ni guardar", async () => {
+    const saved = await recalcTargets(med, { date: D, force: true }, db);
+    if (!saved.ok) throw new Error("debería calcular");
+    const before = await count(med, "nutrition_targets");
+    const r = await getTargets(med, { date: D }, db);
+    expect(r).not.toBeNull();
+    expect(r!.target).toMatchObject({ validFrom: D, phase: "deficit", tdeeMethod: "medido", on: saved.target.on, off: saved.target.off });
+    const text = r!.explain.join(" ");
+    expect(text).toMatch(/medido/);
+    expect(text).toMatch(/Déficit/);
+    expect(text).toMatch(/2,3 g por kg de masa magra/);
+    expect(text).toMatch(/0,8 g por kg de peso/);
+    expect(text).toMatch(/Día On/);
+    expect(await count(med, "nutrition_targets")).toBe(before);
+    // Un día anterior al primer objetivo: no hay vigente.
+    expect(await getTargets(med, { date: addDays(D, -400) }, db)).toBeNull();
+  });
+});
+
+describe("cola sin conexión", () => {
+  it("logFood con el mismo clientId no vuelve a anotar y guarda la hora real", async () => {
+    const loggedAt = "2026-10-23T11:05:00.000Z";
+    const input = { date: "2026-10-23", meal: "comida" as const, foodId: food["Arroz redondo"], grams: 100, clientId: "f-1", loggedAt };
+    const first = await logFood(cal, input, db);
+    if (!first.ok) throw new Error(first.problems.join(" "));
+    expect(first.log.loggedAt).toBe(loggedAt);
+    expect(first.duplicate).toBeUndefined();
+    const before = await count(cal, "food_logs");
+    const again = await logFood(cal, { ...input, grams: 250 }, db);
+    if (!again.ok) throw new Error(again.problems.join(" "));
+    expect(again.duplicate).toBe(true);
+    expect(again.log.id).toBe(first.log.id);
+    expect(again.log.grams).toBe(100);
+    expect(await count(cal, "food_logs")).toBe(before);
   });
 });
 

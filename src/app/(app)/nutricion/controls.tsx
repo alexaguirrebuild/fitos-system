@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Stepper } from "@/components/stepper";
 import { day, int, num, parseNum } from "@/lib/format";
 import type { ActionResult } from "@/lib/result";
-import type { BuildShoppingListResult, RecalcTargetsResult } from "@/server/services/nutrition";
+import type { BuildShoppingListResult, GetTargetsResult, RecalcTargetsResult } from "@/server/services/nutrition";
 import { buildShoppingListAction, deleteFoodLogAction, logCaffeineAction, recalcTargetsAction, setDayTypeAction, updateFoodLogAction } from "./actions";
 
 /** Ejecuta una acción con estado de envío y mensaje de error común (incluido «sin conexión»). */
@@ -126,7 +126,7 @@ export function Caffeine({ todayMg, maxMg, lateDoses, note }: { todayMg: number;
   );
 }
 
-export function Targets({ phase }: { phase: string | null }) {
+export function Targets({ phase, current }: { phase: string | null; current?: GetTargetsResult | null }) {
   const [res, setRes] = useState<RecalcTargetsResult | null>(null);
   const { run, pending, error } = useRun();
   const MISSING: Record<string, string> = { peso: "una pesada", altura: "la altura confirmada", fecha_nacimiento: "la fecha de nacimiento" };
@@ -144,6 +144,17 @@ export function Targets({ phase }: { phase: string | null }) {
         <p className="notice notice-warn mt-3 small" role="alert">
           No se puede calcular: falta {res.missing.map((m) => MISSING[m] ?? m).join(", ")}. {res.warnings.join(" ")}
         </p>
+      ) : null}
+      {!res && current ? (
+        <div className="mt-4">
+          <div className="rows">
+            <div className="row"><span className="row-k">Día On</span><span className="fig">{int(current.target.on.kcal)} kcal · {int(current.target.on.proteinG)} P · {int(current.target.on.carbsG)} H · {int(current.target.on.fatG)} G</span></div>
+            <div className="row"><span className="row-k">Día Off</span><span className="fig">{int(current.target.off.kcal)} kcal · {int(current.target.off.proteinG)} P · {int(current.target.off.carbsG)} H · {int(current.target.off.fatG)} G</span></div>
+          </div>
+          <ul className="small muted mt-3 list-disc space-y-1 pl-5">
+            {current.explain.map((e) => <li key={e}>{e}</li>)}
+          </ul>
+        </div>
       ) : null}
       {res && res.ok ? (
         <div className="mt-4">

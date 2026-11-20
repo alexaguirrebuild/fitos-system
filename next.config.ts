@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
   async headers() {
     return [
+      // El service worker nunca se sirve de la caché del navegador: así las versiones nuevas llegan.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
       {
         // El consentimiento OAuth no se puede incrustar en un iframe (clickjacking).
         source: "/oauth/authorize",

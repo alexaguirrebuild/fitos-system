@@ -10,6 +10,7 @@ import {
   readinessBand, roundToStep, suggestNext, tonnage, warmupLadder, SESSION_CAP,
   type Confidence, type PastSession, type Prescription, type ProgressionRule, type SetLog,
 } from "@/engine";
+import { IsoDateTime } from "./annotations";
 import { IsoDate, Uuid, ankleStatusTx, dateOrToday, isoTs, parseInput, type AnkleStatus } from "./athlete";
 import {
   EXERCISE_COLS, alternativesIn, createExerciseTx, getExerciseTx, loadLibraryTx, normalizeText, resolveIn, type Exercise,
@@ -350,6 +351,12 @@ async function buildViewTx(tx: Tx, w: Workout, only?: string[]): Promise<Workout
       if (suggestion && suggestion.kg != null && kg != null && suggestion.kg > kg)
         suggestion = { ...suggestion, kg, why: `${suggestion.why} Tope del ${capPct} % ${loadCap.reason === "tobillo" ? "por el tobillo" : "del plan"}: ${es(kg)} kg.` };
     }
+    // Si dolió al día siguiente de la última pierna, el ejercicio que carga el tobillo pierde una serie (mínimo 1): sin top set.
+    if (flagged && ankle.rule.dropTopSet && suggestion) {
+      const sets = Math.max(1, suggestion.sets - 1);
+      suggestion = { ...suggestion, sets, repsTarget: suggestion.repsTarget.slice(0, sets),
+        why: `${suggestion.why} Tobillo: dolió al día siguiente de la última pierna, hoy sin top set.` };
+    }
     let ankleWarning: ExerciseBlock["ankleWarning"] = null;
     if (flagged) {
       const alt = alternativesIn(lib, e, { ankleSafe: true, limit: 1 })[0];
@@ -478,6 +485,8 @@ export const LogSetInput = z.object({
   date: IsoDate.optional().describe("Día de la serie (AAAA-MM-DD) si no se indica sesión. Por defecto, hoy"),
   restSeconds: z.number().int().min(0).max(3600).optional().describe("Descanso antes de esta serie, en segundos"),
   force: z.boolean().optional().describe("Guardar aunque sea idéntica a la serie anterior registrada hace menos de 20 s"),
+  clientId: z.string().min(1).max(64).optional().describe("Id generado por el cliente (cola sin conexión). Si ya existe para este atleta, no se vuelve a guardar"),
+  doneAt: IsoDateTime.optional().describe("Hora real de la serie (ISO 8601). Por defecto, el momento del registro"),
 });
 export type LogSetInput = z.input<typeof LogSetInput>;
 
@@ -531,6 +540,17 @@ async function refreshTotalsTx(tx: Tx, workoutId: string): Promise<void> {
 
 async function logSetTx(tx: Tx, i: z.output<typeof LogSetInput>): Promise<LogSetResult> {
   const warnings: string[] = [];
+  // Reenvío de la cola sin conexión: si el id de cliente ya existe, se devuelve esa fila y no se escribe nada.
+  if (i.clientId) {
+    const [dup] = await tx.query<SetView>(`select ${SET_COLS} from fit.workout_sets s where s.client_id = $1`, [i.clientId]);
+    if (dup) {
+      const w = await getWorkoutTx(tx, dup.workoutId);
+      const view = await buildViewTx(tx, w);
+      const ex = await getExerciseTx(tx, dup.exerciseId!);
+      return { ok: true, workoutId: w.id, exercise: brief(ex), set: dup, duplicate: true, isPr: false, pr: null, next: pickNext(view, ex.id), totals: view.totals,
+        warnings: ["Esa serie ya estaba registrada (mismo id de cliente): no se ha guardado otra vez."] };
+    }
+  }
   // Primero el ejercicio: si es ambiguo no se escribe nada (ni la sesión).
   const res = await resolveRefTx(tx, i.exercise, true);
   if ("candidates" in res)
@@ -576,11 +596,11 @@ async function logSetTx(tx: Tx, i: z.output<typeof LogSetInput>): Promise<LogSet
     "select coalesce(max(set_index), 0) + 1 as n from fit.workout_sets where workout_id = $1 and exercise_position = $2", [w.id, entry.position]);
   const [ins] = await tx.query<{ id: string }>(
     `insert into fit.workout_sets (workout_id, exercise_id, exercise_name_raw, exercise_position, set_index, set_type, kg, reps, rir,
-       kg_target, reps_target, rir_target, per_side, rest_seconds, e1rm, e1rm_confidence, effective_reps, rule_applied, note, done_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now()) returning id`,
+       kg_target, reps_target, rir_target, per_side, rest_seconds, e1rm, e1rm_confidence, effective_reps, rule_applied, note, done_at, client_id)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, coalesce($20::timestamptz, now()), $21) returning id`,
     [w.id, ex.id, UUID_RE.test(i.exercise) ? null : i.exercise, entry.position, setIndex, i.setType, i.kg, i.reps, rir,
       sug?.kg ?? null, sug ? sug.repsTarget[before.workingSetsDone] ?? null : null, sug?.rirTarget ?? null,
-      i.perSide ?? ex.perSide, i.restSeconds ?? null, m.e1rm, m.confidence, m.effective, sug?.rule ?? null, i.note ?? null]);
+      i.perSide ?? ex.perSide, i.restSeconds ?? null, m.e1rm, m.confidence, m.effective, sug?.rule ?? null, i.note ?? null, i.doneAt ?? null, i.clientId ?? null]);
 
   let pr: { e1rm: number; previous: number } | null = null;
   if (m.e1rm != null && m.confidence !== "baja") {

@@ -82,7 +82,8 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
     setError(null);
     setFlash(null);
 
-    const input: LogSetInput = { workoutId: w.id, exercise: b.exercise.id, kg, reps, ...(rir != null ? { rir } : {}) };
+    // clientId y hora desde ya: el mismo envío se puede repetir desde la cola sin duplicar y con la hora real de la serie.
+    const input: LogSetInput = { workoutId: w.id, exercise: b.exercise.id, kg, reps, ...(rir != null ? { rir } : {}), clientId: crypto.randomUUID(), doneAt: new Date().toISOString() };
     const text = setText({ kg, reps, rir });
     const key = crypto.randomUUID();
     restTimer.start(b.next?.restSeconds ?? b.prescription?.restSeconds ?? 120);

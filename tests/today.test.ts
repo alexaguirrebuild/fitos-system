@@ -237,4 +237,31 @@ describe("getToday: con plan activo", () => {
     expect(t.activity!.steps.done).toBe(30000);
     expect(t.nextAction.kind).toBe("nada");
   });
+  it("dolor al día siguiente de pierna: el ejercicio que carga el tobillo pierde una serie (sin top set)", async () => {
+    // Día de pierna hecho con series reales en D+4, y dolor 5/10 al día siguiente (D+5). Se consulta la próxima Pierna A (D+9).
+    const leg = await logSet(a, { exercise: "sentadilla-multipower", kg: 60, reps: 8, rir: 2, date: addDays(D, 4) }, db);
+    if (!leg.ok) throw new Error("no se pudo anotar la serie de pierna");
+    await finishWorkout(a, { workoutId: leg.workoutId, srpe: 7, durationMin: 50 }, db);
+    // La rueda ya pasó por Brazo + Hombro; cerrando Torso A (D+8) la siguiente es Pierna A (D+9).
+    const torsoA = (await getToday(a, { date: addDays(D, 7) }, db, { now: MORNING })).training!.next!;
+    expect(torsoA.name).toBe("Torso A");
+    const w = await startWorkout(a, { date: addDays(D, 8), sessionTemplateId: torsoA.sessionTemplateId }, db);
+    await finishWorkout(a, { workoutId: w.workout.id, srpe: 6, durationMin: 50 }, db);
+    const date = addDays(D, 9);
+    const squatOf = (t: TodayView) => t.training!.next!.exercises.find((e) => e.slug === "sentadilla-multipower")!;
+    const before = squatOf(await getToday(a, { date }, db, { now: MORNING }));
+    expect(before.suggestion!.sets).toBeGreaterThan(1);
+    expect(before.suggestion!.why).not.toContain("sin top set");
+
+    await logInjuryPain(a, { zone: "tobillo", pain: 5, moment: "dia_siguiente", date: addDays(D, 5) }, db);
+    const t = await getToday(a, { date }, db, { now: MORNING });
+    expect(t.ankle).toMatchObject({ restricted: true, dropTopSet: true });
+    const after = squatOf(t);
+    expect(after.suggestion!.sets).toBe(before.suggestion!.sets - 1);
+    expect(after.suggestion!.repsTarget).toHaveLength(after.suggestion!.sets);
+    expect(after.suggestion!.why).toContain("Tobillo: dolió al día siguiente de la última pierna, hoy sin top set.");
+    // Lo que no carga el tobillo no cambia.
+    const quad = t.training!.next!.exercises.find((e) => e.slug === "extension-cuadriceps")!;
+    expect(quad.suggestion?.why ?? "").not.toContain("sin top set");
+  });
 });

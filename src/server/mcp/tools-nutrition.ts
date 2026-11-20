@@ -5,10 +5,10 @@
 import { z } from "zod";
 import { AppError, invalid } from "@/server/errors";
 import {
-  BuildShoppingListInput, DeleteFoodLogInput, GetNutritionDayInput, ListMealTemplatesInput, LogCaffeineInput, LogFoodInput, LogMealTemplateInput,
+  BuildShoppingListInput, DeleteFoodLogInput, GetNutritionDayInput, GetTargetsInput, ListMealTemplatesInput, LogCaffeineInput, LogFoodInput, LogMealTemplateInput,
   LookupBarcodeInput, RecalcTargetsInput, RepeatMealInput, SaveMealTemplateInput, SearchFoodsInput, SetDayTypeInput, UpdateFoodLogInput, UpdateFoodPriceInput,
   WeeklyNutritionReviewInput,
-  buildShoppingList, deleteFoodLog, getNutritionDay, listMealTemplates, logCaffeine, logFood, logMealTemplate, lookupBarcode, recalcTargets, repeatMeal,
+  buildShoppingList, deleteFoodLog, getNutritionDay, getTargets, listMealTemplates, logCaffeine, logFood, logMealTemplate, lookupBarcode, recalcTargets, repeatMeal,
   saveMealTemplate, searchFoods, setDayType, updateFoodLog, updateFoodPrice, weeklyNutritionReview, normalizeFoodText,
   type DayTotals, type Food, type FoodLog, type MealTemplate,
 } from "@/server/services";
@@ -58,6 +58,24 @@ const getNutritionDayTool = defineTool({
       logs: logs.items, logsTotal: logs.total, logsTruncated: logs.truncated,
       caffeine: d.caffeine, steps: d.steps,
       message: d.target ? null : "Aún no hay objetivos de calorías: hacen falta peso, altura confirmada y fecha de nacimiento, y luego recalc_nutrition_targets.",
+    };
+  },
+});
+
+const getTargetsTool = defineTool({
+  name: "get_nutrition_targets",
+  title: "Ver objetivos de calorías",
+  description: "Úsala para «cuáles son mis objetivos» o «de dónde sale esa cifra»: devuelve los objetivos vigentes de los días On y Off con las frases que explican el gasto, el ritmo, el déficit y la proteína. Solo lee: no recalcula ni guarda nada (para eso, recalc_nutrition_targets).",
+  scope: "mcp:read",
+  readOnly: true,
+  input: GetTargetsInput,
+  handler: async (ctx, args) => {
+    const r = await getTargets(ctx.userId, args);
+    if (!r) return { found: false, message: "Aún no hay objetivos de calorías: hacen falta peso, altura confirmada y fecha de nacimiento, y luego recalc_nutrition_targets." };
+    const t = r.target;
+    return {
+      found: true, date: r.date, validFrom: t.validFrom, phase: t.phase, tdee: r0(t.tdee), tdeeMethod: t.tdeeMethod,
+      on: roundMacros(t.on), off: roundMacros(t.off), explain: r.explain,
     };
   },
 });
@@ -324,7 +342,7 @@ const updateFoodPriceTool = defineTool({
 });
 
 export const nutritionTools: AnyTool[] = [
-  getNutritionDayTool, searchFoodsTool, lookupBarcodeTool, listMealTemplatesTool,
+  getNutritionDayTool, getTargetsTool, searchFoodsTool, lookupBarcodeTool, listMealTemplatesTool,
   logFoodTool, updateFoodLogTool, deleteFoodLogTool, logMealTemplateTool, repeatMealTool, logCaffeineTool,
   recalcTargetsTool, setDayTypeTool, buildShoppingListTool, weeklyReviewTool, saveMealTemplateTool, updateFoodPriceTool,
 ];
