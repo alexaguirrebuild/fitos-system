@@ -189,7 +189,8 @@ export async function prescriptionsForTx(tx: Tx, templateIds: string[], microPos
     const key = `${r.sessionTemplateId}:${r.position}`;
     if (seen.has(key)) continue; // ya entró la específica del microciclo
     seen.add(key);
-    const { sessionTemplateId, microcyclePosition: _mp, slug, name, primaryMuscle, kind, equipment, ankleLoad, ...rx } = r;
+    const { sessionTemplateId, microcyclePosition, slug, name, primaryMuscle, kind, equipment, ankleLoad, ...rx } = r;
+    void microcyclePosition; // solo sirve para elegir la fila; no sale en la vista
     out.get(sessionTemplateId)!.push({ ...rx, exercise: { slug, name, primaryMuscle, kind, equipment, ankleLoad } });
   }
   return out;
