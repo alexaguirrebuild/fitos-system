@@ -164,7 +164,9 @@ describe("POST /api/mcp: protocolo y herramientas", () => {
 
     // Solo mcp:log: no ve las de lectura.
     const onlyLog = await tokenFor(["mcp:log"]);
-    expect(toolNames(await rpc(onlyLog.access, "tools/list"))).toEqual(["test_log_note"]);
+    const onlyLogNames = toolNames(await rpc(onlyLog.access, "tools/list"));
+    expect(onlyLogNames).toContain("test_log_note");
+    expect([...onlyLogNames].sort()).toEqual(allTools.filter((t) => t.scope === "mcp:log").map((t) => t.name).sort());
   });
 
   it("tools/call whoami", async () => {
