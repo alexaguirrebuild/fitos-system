@@ -1,0 +1,155 @@
+[
+ {
+  "id": "biceps",
+  "name": "Bíceps",
+  "region": "brazo",
+  "default_mev": 12.0,
+  "default_mrv": 24.0,
+  "half_life_h": 24,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "triceps",
+  "name": "Tríceps",
+  "region": "brazo",
+  "default_mev": 8.0,
+  "default_mrv": 18.0,
+  "half_life_h": 24,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "deltoides_lateral",
+  "name": "Deltoides lateral",
+  "region": "torso",
+  "default_mev": 14.0,
+  "default_mrv": 28.0,
+  "half_life_h": 24,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "deltoides_posterior",
+  "name": "Deltoides posterior",
+  "region": "torso",
+  "default_mev": 6.0,
+  "default_mrv": 12.0,
+  "half_life_h": 24,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "deltoides_anterior",
+  "name": "Deltoides anterior",
+  "region": "torso",
+  "default_mev": 0.0,
+  "default_mrv": 12.0,
+  "half_life_h": 24,
+  "source": "valor de arranque"
+ },
+ {
+  "id": "pectoral",
+  "name": "Pectoral",
+  "region": "torso",
+  "default_mev": 10.0,
+  "default_mrv": 20.0,
+  "half_life_h": 30,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "espalda",
+  "name": "Espalda",
+  "region": "torso",
+  "default_mev": 16.0,
+  "default_mrv": 36.0,
+  "half_life_h": 30,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "trapecio",
+  "name": "Trapecio",
+  "region": "torso",
+  "default_mev": 4.0,
+  "default_mrv": 16.0,
+  "half_life_h": 30,
+  "source": "valor de arranque"
+ },
+ {
+  "id": "erectores",
+  "name": "Erectores espinales",
+  "region": "torso",
+  "default_mev": 2.0,
+  "default_mrv": 10.0,
+  "half_life_h": 48,
+  "source": "valor de arranque"
+ },
+ {
+  "id": "antebrazo",
+  "name": "Antebrazo",
+  "region": "brazo",
+  "default_mev": 2.0,
+  "default_mrv": 12.0,
+  "half_life_h": 24,
+  "source": "valor de arranque"
+ },
+ {
+  "id": "cuadriceps",
+  "name": "Cuádriceps",
+  "region": "pierna",
+  "default_mev": 6.0,
+  "default_mrv": 12.0,
+  "half_life_h": 48,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "isquios",
+  "name": "Isquiosurales",
+  "region": "pierna",
+  "default_mev": 6.0,
+  "default_mrv": 18.0,
+  "half_life_h": 48,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "gluteos",
+  "name": "Glúteos",
+  "region": "pierna",
+  "default_mev": 4.0,
+  "default_mrv": 16.0,
+  "half_life_h": 48,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "aductores",
+  "name": "Aductores",
+  "region": "pierna",
+  "default_mev": 4.0,
+  "default_mrv": 12.0,
+  "half_life_h": 48,
+  "source": "Gorilangel VOL SEMANAL"
+ },
+ {
+  "id": "abductores",
+  "name": "Abductores",
+  "region": "pierna",
+  "default_mev": 4.0,
+  "default_mrv": 12.0,
+  "half_life_h": 48,
+  "source": "valor de arranque"
+ },
+ {
+  "id": "gemelos",
+  "name": "Gemelos",
+  "region": "pierna",
+  "default_mev": 6.0,
+  "default_mrv": 16.0,
+  "half_life_h": 48,
+  "source": "valor de arranque"
+ },
+ {
+  "id": "core",
+  "name": "Core",
+  "region": "core",
+  "default_mev": 4.0,
+  "default_mrv": 16.0,
+  "half_life_h": 24,
+  "source": "valor de arranque"
+ }
+]

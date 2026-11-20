@@ -1,0 +1,234 @@
+[
+ {
+  "slug": "rir",
+  "term": "RIR (repeticiones en reserva)",
+  "category": "intensidad",
+  "definition": "Cuántas repeticiones te quedaban antes del fallo al acabar la serie. RIR 1 = podías una más.",
+  "notes": "Se estima con ±1 hasta RIR 3; más lejos del fallo el error sube a 2-3 repeticiones.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "rpe",
+  "term": "RPE (esfuerzo percibido)",
+  "category": "intensidad",
+  "definition": "Escala 1-10 del esfuerzo de la serie. RPE = 10 − RIR.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "e1rm",
+  "term": "e1RM (1RM estimado)",
+  "category": "intensidad",
+  "definition": "Peso que podrías levantar una vez, calculado con la carga y las repeticiones al fallo (reps + RIR).",
+  "notes": "Epley hasta 10 repeticiones al fallo; media Epley-Brzycki hasta 15; por encima no se estima.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "serie-efectiva",
+  "term": "Serie efectiva",
+  "category": "volumen",
+  "definition": "Serie a 3 o menos del fallo. Las de aproximación no cuentan.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "repeticiones-efectivas",
+  "term": "Repeticiones efectivas",
+  "category": "volumen",
+  "definition": "Las ~5 últimas repeticiones antes del fallo, que concentran el estímulo.",
+  "notes": "Modelo práctico, no medición.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "doble-progresion",
+  "term": "Doble progresión",
+  "category": "intensidad",
+  "definition": "Con una carga, suma repeticiones hasta el techo del rango; al llegar en todas las series, sube carga y vuelve al suelo del rango.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "srpe",
+  "term": "sRPE (esfuerzo de la sesión)",
+  "category": "recuperacion",
+  "definition": "Nota 1-10 de lo dura que fue la sesión entera. Multiplicada por los minutos da la carga de la sesión.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "acwr",
+  "term": "ACWR (carga aguda : crónica)",
+  "category": "recuperacion",
+  "definition": "Compara la carga de la última semana con la del último mes. Sirve para ver picos de carga.",
+  "notes": "Es un semáforo, no una probabilidad de lesión. Aquí se calcula con medias exponenciales (EWMA) por día de calendario.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "ewma",
+  "term": "EWMA (media móvil exponencial)",
+  "category": "recuperacion",
+  "definition": "Media que da más peso a los días recientes: λ = 2/(N+1).",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "tonelaje",
+  "term": "Tonelaje",
+  "category": "volumen",
+  "definition": "Suma de kg × repeticiones. Describe el trabajo, no el esfuerzo.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "nl",
+  "term": "NL (número de levantamientos)",
+  "category": "volumen",
+  "definition": "Repeticiones totales de un ejercicio o sesión.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "imr",
+  "term": "IMR (intensidad media relativa)",
+  "category": "intensidad",
+  "definition": "Carga media por repetición dividida entre el 1RM.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "indice-de-estres",
+  "term": "Índice de estrés",
+  "category": "recuperacion",
+  "definition": "Suma por serie según lo cerca del fallo: 1,6 a RIR 0 … 0,6 a RIR 4. Más de 26 en una semana para un grupo es una semana dura.",
+  "notes": "Heurística (tabla de Robert Frederick).",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "ref",
+  "term": "REF (ratio estímulo-fatiga del Excel)",
+  "category": "volumen",
+  "definition": "Repeticiones entre los puntos de % que faltan hasta el 1RM. Por sesión: 0,4-1,3 bueno y recuperable.",
+  "notes": "Descriptivo: no tiene en cuenta el RIR.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "sfr",
+  "term": "SFR (estímulo entre fatiga)",
+  "category": "volumen",
+  "definition": "Repeticiones efectivas divididas entre el coste del ejercicio (básico pesado, estabilidad, perfil). Compara ejercicios del mismo músculo.",
+  "notes": "Heurística.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "readiness",
+  "term": "Readiness",
+  "category": "recuperacion",
+  "definition": "Nota 0-100 del check-in: sueño, estrés, motivación, dolor y fatiga. Por debajo de 50, una más en reserva; por debajo de 30, solo Z2.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "descarga",
+  "term": "Descarga (deload)",
+  "category": "recuperacion",
+  "definition": "Una semana con un 40 % menos de series, misma carga y 2 repeticiones más en reserva.",
+  "notes": "Se propone cuando coinciden dos señales, no por calendario.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "microciclo",
+  "term": "Microciclo",
+  "category": "volumen",
+  "definition": "Vuelta completa a todas las sesiones del plan. No tiene por qué durar 7 días.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "dia-on-off",
+  "term": "Día On / día Off",
+  "category": "nutricion",
+  "definition": "Día de pesas (más calorías, sobre todo hidratos) y día sin pesas (menos). El total de la semana no cambia.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "tdee",
+  "term": "TDEE (gasto diario)",
+  "category": "nutricion",
+  "definition": "Calorías que gastas al día. Al empezar se estima; a partir de 14 días se mide con lo que comes y lo que cambia tu peso.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "tendencia-de-peso",
+  "term": "Tendencia de peso",
+  "category": "nutricion",
+  "definition": "Peso suavizado. El dato de un día baila ±1 kg por agua; el ritmo se mide con la tendencia.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "semana-de-mantenimiento",
+  "term": "Semana a mantenimiento (diet break)",
+  "category": "nutricion",
+  "definition": "Una semana comiendo lo que gastas, para recuperar rendimiento y adherencia.",
+  "notes": "No acelera la pérdida de grasa; ayuda a sostenerla.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "z2",
+  "term": "Zona 2",
+  "category": "cardio",
+  "definition": "Cardio suave: puedes hablar. 55-70 % de tu frecuencia cardiaca de reserva.",
+  "notes": "Con el tobillo en vigilancia: bici o elíptica.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "fc-reserva",
+  "term": "FC de reserva (Karvonen)",
+  "category": "cardio",
+  "definition": "FC máxima menos FC en reposo. Las zonas se calculan como un % de esa reserva más la FC en reposo.",
+  "notes": "FC máxima estimada: 208 − 0,7 × edad.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "neat",
+  "term": "NEAT (pasos)",
+  "category": "cardio",
+  "definition": "Lo que gastas moviéndote fuera del entreno. En déficit es lo primero que se sube.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "ecos",
+  "term": "ECOS",
+  "category": "cardio",
+  "definition": "Carga del cardio: minutos × factor de zona.",
+  "notes": null,
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "corte-de-cafeina",
+  "term": "Corte de cafeína",
+  "category": "recuperacion",
+  "definition": "Última hora para tomar cafeína: 9 horas antes de acostarte.",
+  "notes": "400 mg a 6 h de dormir ya alteran el sueño.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "poms",
+  "term": "POMS (perfil de estados de ánimo)",
+  "category": "recuperacion",
+  "definition": "Cuestionario de 52 adjetivos. Perfil «iceberg» (vigor alto, lo demás bajo) = bien; invertido = alerta.",
+  "notes": "Chequeo ocasional; el diario es el check-in.",
+  "source": "Motor de la app"
+ },
+ {
+  "slug": "regla-del-tobillo",
+  "term": "Regla del tobillo",
+  "category": "recuperacion",
+  "definition": "Con dolor por encima de 3: cero carrera, saltos y HIIT con impacto; Z2 en bici o elíptica; sentadilla guiada con tope del 75 %.",
+  "notes": "Si duele al día siguiente de pierna, fuera el top set de la próxima.",
+  "source": "Motor de la app"
+ }
+]

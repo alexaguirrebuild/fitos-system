@@ -1,0 +1,234 @@
+[
+ {
+  "slug": "drop-set-ds",
+  "term": "DROP SET (DS)",
+  "category": "tecnica",
+  "definition": "Completa una serie hasta casi fallo o fallo técnico, reduce 20–30% la carga y sigue hasta el fallo.",
+  "notes": "Conteo: DS doble = 2 reducciones; DS triple = 3 reducciones (misma reducción aproximada cada vez). Notas: Mantén la técnica estria; orientado a fatiga local y bombeo más que a rendimiento neurálgico.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "micropausas-mp",
+  "term": "MICROPAUSAS (MP)",
+  "category": "tecnica",
+  "definition": "Realiza tantas repeticiones como puedas, haz una pausa de 5 segundos y tantas repeticiones como puedas el número de ciclos que se pida.",
+  "notes": "Conteo: MP I = 1 micropausa; MP II = 2 micropausas; MP III = 3 micropausas Notas: Cuando la repetición no se llega a completar se termina la microserie.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "restpause-rp",
+  "term": "RESTPAUSE (RP)",
+  "category": "tecnica",
+  "definition": "Llega a casi fallo, 10–20 s de respiración con el peso apoyado/reposo, saca 3–5 reps extra. Puedes repetir 1–2 minibloques en la misma serie.",
+  "notes": "Notas: Úsalo con cargas moderadasaltas y ejercicios seguros; prioriza tensión de calidad sobre el número total.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "superset-ss",
+  "term": "SUPERSET (SS)",
+  "category": "tecnica",
+  "definition": "2 ejercicios consecutivos sin descanso. Agonista/antagonista (p. ej., pechoespalda) o mismo músculo si buscas congestión.",
+  "notes": "Notas: Para fuerza/ rendimiento, suele preferir antagonistas; para hipertrofia local, mismo músculo.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "triset",
+  "term": "Triset",
+  "category": "tecnica",
+  "definition": "3 ejercicios consecutivos sin descanso.",
+  "notes": "Notas: Útil para congestión y fatiga metabólica; controla el orden para no degradar la técnica en patrones complejos.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "giant-set",
+  "term": "Giant Set",
+  "category": "tecnica",
+  "definition": "4+ ejercicios del mismo músculo sin descanso real.",
+  "notes": "Notas: Gran estímulo de acumulación de metabolitos; reserva para fases orientadas a tolerancia a la fatiga.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "myoreps",
+  "term": "Myoreps",
+  "category": "tecnica",
+  "definition": "Tras alcanzar el fallo, descansa 5 segundos e intenta 2 repes. Repite este ciclo (5s+2 rep) hasta que falles intentando completar 2 repeticiones.",
+  "notes": "Notas: Pariente del RP, pero con activación inicial y descansos ultracortos; muy eficiente en tiempo.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "cluster-sets-cluster",
+  "term": "CLUSTER SETS (CLUSTER)",
+  "category": "tecnica",
+  "definition": "Con 80–90% 1RM, divide el objetivo total en microclusters separados por 10–20 s (p. ej., 15 totales: 4+4+4+3).",
+  "notes": "Notas: Aumenta volumen a alta carga sin degradar velocidad; ideal en básicos o máquinas estables.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "partial-reps-acortamiento",
+  "term": "Partial Reps – Acortamiento",
+  "category": "tecnica",
+  "definition": "Tras el fallo completo, continúa con parciales en el tercio superior del ROM.",
+  "notes": "Notas: Útil para bombeo y conexión mentemúsculo; no “rebotes”.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "partial-reps-estiramiento",
+  "term": "Partial Reps – Estiramiento",
+  "category": "tecnica",
+  "definition": "Tras el fallo, reps cortas en el tercio inferior del ROM (posición estirada).",
+  "notes": "Notas: Carga bien el músculo en su punto de mayor tensión; controla la estabilidad articular.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "partial-reps-zona-media",
+  "term": "Partial Reps – Zona Media",
+  "category": "tecnica",
+  "definition": "Tras el fallo, reps en el rango medio del ROM.",
+  "notes": "Notas: Mantiene tensión continua y ritmo; útil cuando los extremos comprometen la técnica.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "eccentric-overload-eo",
+  "term": "ECCENTRIC OVERLOAD (EO)",
+  "category": "tecnica",
+  "definition": "3–6 s de excéntrica con 110–130% 1RM (concéntrica asistida o máquina).",
+  "notes": "Notas: Muy estresante; bajo volumen, alta técnica y seguridad.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "preexhaust-prefatiga",
+  "term": "PREEXHAUST (PREFATIGA)",
+  "category": "tecnica",
+  "definition": "Ejercicio de aislamiento para fatigar el objetivo, seguido sin descanso de un compuesto que lo incluya (p. ej., aperturas + press).",
+  "notes": "Notas: Si la técnica del compuesto se degrada, reduce el aislamiento o cambia a preaivación (tensión ligera).",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "postexhaust-postfatiga",
+  "term": "POSTEXHAUST (POSTFATIGA)",
+  "category": "tecnica",
+  "definition": "Compuesto pesado seguido inmediatamente de aislamiento del mismo músculo.",
+  "notes": "Notas: Menos riesgo técnico; “exprime” fibras residuales tras el patrón global.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "paused-reps",
+  "term": "Paused Reps",
+  "category": "tecnica",
+  "definition": "1–3 s de pausa en el punto más difícil (fondo de sentadilla, estirado en curl, a centímetros del pecho en press), dentro de cada repetición.",
+  "notes": "Notas: Mejora control, fuerza en rango débil y elimina inercia.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "114-reps-o-112-segun-rom",
+  "term": "1¼ REPS (O 1½ SEGÚN ROM)",
+  "category": "tecnica",
+  "definition": "Bajada completa → sube ¼ (o ½) → baja de nuevo → sube completa = 1 rep.",
+  "notes": "Notas: Coloca el extra en la zona crítica (p. ej., parte baja de sentadilla o press).",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "peak-contraction-hold",
+  "term": "Peak Contraction Hold",
+  "category": "tecnica",
+  "definition": "1–2 s de isométrico en la máxima contracción de cada repetición.",
+  "notes": "Notas: Útil para control motor y bombeo; no lo uses en patrones donde el pico dependa de bloqueo articular.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "forced-reps",
+  "term": "Forced Reps",
+  "category": "tecnica",
+  "definition": "Tras el fallo técnico, el compañero aporta la mínima ayuda para 2–3 reps adicionales.",
+  "notes": "Notas: Empléalo puntualmente; no “arrastres” reps con técnica rota.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "mechanical-drop-set-mds",
+  "term": "MECHANICAL DROP SET (MDS)",
+  "category": "tecnica",
+  "definition": "Al llegar a casi fallo (AMRAP), cambia a una variante más ventajosa sin reducir carga y AMRAP^, cambia y AMRAP",
+  "notes": "Notas: Misma lógica que un drop set, pero el “drop” es mecánico, no de peso.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "mtor-estiramiento-estrategico",
+  "term": "Mtor/Estiramiento Estratégico",
+  "category": "tecnica",
+  "definition": "Excéntrica lenta (≈ 4–5 s), pausa en estiramiento (2–3 s controlada), concéntrica controlada.",
+  "notes": "Notas: Potente para hipertrofia cuando la posición alargada tolera tensión; usa volumen moderado.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "isodynamic-contrast-idc",
+  "term": "ISODYNAMIC CONTRAST (IDC)",
+  "category": "tecnica",
+  "definition": "Mantén un isométrico (p. ej., 20–30 s en pico o en estiramiento seguro), suelta y realiza reps continuas hasta casi fallo.",
+  "notes": "Notas: Crea fatiga local muy alta; ideal en máquinas/poleas.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "oscillatory-reps-or",
+  "term": "OSCILLATORY REPS (OR)",
+  "category": "tecnica",
+  "definition": "Dentro de una repetición, realiza microoscilaciones de 2–4 cm durante 5–8 s alrededor del sticking point, y luego completa la repetición.",
+  "notes": "Notas: Mejora estabilidad y fuerza específica; requiere control.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "excentricoisometrico-e-iso",
+  "term": "EXCÉNTRICOISOMÉTRICO (E-ISO)",
+  "category": "tecnica",
+  "definition": "3–5 s de excéntrica + 2–3 s de pausa isométrica en el rango más bajo seguro, concéntrica potente pero técnica.",
+  "notes": "Notas: Refuerza técnica y control; excelente en sentadilla, press, dominancias de rodilla.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "slow-eccentrics-se",
+  "term": "SLOW ECCENTRICS (SE)",
+  "category": "tecnica",
+  "definition": "Mantén la excéntrica en 4–6 s con carga submáxima, reps controladas sin rebotes.",
+  "notes": "Notas: Menos agresiva que EO; buena para aprendizaje motor y estímulo de tensión mecánica.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "cheat-to-strict-cts",
+  "term": "CHEAT-TO-STRICT (CTS)",
+  "category": "tecnica",
+  "definition": "Tras casi fallo estricto, usa un ligero impulso controlado para 1–3 reps, y termina con 1–2 reps estrias parciales si procede.",
+  "notes": "Notas:  la permite con criterio en aislamientos seguros; nunca sacrificar el control del objetivo.",
+  "source": "Glosario de Gorilangel"
+ },
+ {
+  "slug": "mrv",
+  "term": "Volumen Máximo Recuperable (MRV)",
+  "category": "volumen",
+  "definition": "Es el volumen más alto de entrenamiento que un atleta puede realizar en una situación determinada y del cual aún puede recuperarse.",
+  "notes": null,
+  "source": "Anotaciones de Gorilangel"
+ },
+ {
+  "slug": "mev",
+  "term": "Volumen Mínimo Efectivo (MEV)",
+  "category": "volumen",
+  "definition": "Es el volumen más bajo de entrenamiento que un atleta puede realizar en una situación determinada y que aún produzca una mejora medible.",
+  "notes": null,
+  "source": "Anotaciones de Gorilangel"
+ },
+ {
+  "slug": "mav",
+  "term": "Volumen Máximo Adaptativo (MAV)",
+  "category": "volumen",
+  "definition": "Cantidad de entrenamiento que, en una unidad de tiempo determinada, produce la mayor respuesta adaptativa posible.",
+  "notes": null,
+  "source": "Anotaciones de Gorilangel"
+ },
+ {
+  "slug": "mv",
+  "term": "Volumen de Mantenimiento (MV)",
+  "category": "volumen",
+  "definition": "Volumen más bajo de entrenamiento que un atleta puede realizar en una situación determinada y que aún le permite mantener sus capacidades.",
+  "notes": null,
+  "source": "Anotaciones de Gorilangel"
+ }
+]
