@@ -1,7 +1,13 @@
 /** El servidor MCP de una petición: se monta con el contexto del token y solo con las herramientas que sus scopes permiten. */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTools, type AnyTool, type ToolContext, type ToolHooks } from "./registry";
+import { cardioTools } from "./tools-cardio";
 import { coreTools, SERVER_NAME, SERVER_VERSION } from "./tools-core";
+import { insightTools } from "./tools-insight";
+import { nutritionTools } from "./tools-nutrition";
+import { planTools } from "./tools-plan";
+import { trainingTools } from "./tools-training";
+import { wellnessTools } from "./tools-wellness";
 
 /**
  * Todas las herramientas del servidor.
@@ -10,7 +16,7 @@ import { coreTools, SERVER_NAME, SERVER_VERSION } from "./tools-core";
  *   export const allTools: AnyTool[] = [...coreTools, ...trainingTools, ...nutritionTools];
  * Cada herramienta se declara con defineTool() (ver registry.ts). Los nombres no se pueden repetir.
  */
-export const allTools: AnyTool[] = [...coreTools];
+export const allTools: AnyTool[] = [...coreTools, ...insightTools, ...planTools, ...trainingTools, ...wellnessTools, ...nutritionTools, ...cardioTools];
 
 export function buildMcpServer(ctx: ToolContext, tools: AnyTool[] = allTools, hooks: ToolHooks = {}): McpServer {
   const server = new McpServer(
