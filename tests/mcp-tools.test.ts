@@ -300,7 +300,8 @@ describe("nutrición", () => {
     const ambiguous = await call(t, "log_food", { food: "arroz", grams: 80 });
     expect(ambiguous.isError).toBe(true);
     expect(ambiguous.data.error).toBe("ambiguo");
-    expect(ambiguous.data.details.candidates.map((c: Data) => c.name).sort()).toEqual(["Arroz basmati", "Arroz redondo"]);
+    // El catálogo semilla también trae arroces: basta con que estén los dos del test.
+    expect(ambiguous.data.details.candidates.map((c: Data) => c.name)).toEqual(expect.arrayContaining(["Arroz basmati", "Arroz redondo"]));
     expect({ logs: await count("food_logs"), audit: (await auditLog()).length }).toEqual(before);
   });
 
