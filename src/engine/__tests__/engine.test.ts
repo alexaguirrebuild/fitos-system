@@ -134,8 +134,13 @@ describe("carga y ACWR (el fallo de la app antigua)", () => {
     expect(E.liftCount(s)).toBe(10);
     expect(E.meanRelativeIntensity(s, 125)).toBeCloseTo(0.8, 6);
     expect(E.setStress(0)).toBeCloseTo(1.6, 6);
-    expect(E.setStress(4)).toBeCloseTo(0.6, 6);
+    expect([0, 1, 2, 3, 4].map((r) => E.setStress(r))).toEqual([1.6, 1.2, 1.0, 0.8, 0.6]);
+    expect(E.setStress(0.5)).toBe(1.4);
+    expect(E.setStress(6)).toBeCloseTo(0.2, 6);
     expect(E.weeklyStress(Array(20).fill(set(50, 10, 0))).band).toBe("duro");
+    expect(E.weeklyStress(Array(18).fill(set(50, 10, 1))).band).toBe("medio");
+    expect(E.weeklyStress(Array(10).fill(set(50, 10, 1))).band).toBe("ligero");
+    expect(E.sessionStress([set(50, 10, 1), set(50, 10, 1), set(50, 10, 0)])).toEqual({ value: 4, band: "medio" });
     expect(E.sessionLoad(7, 85)).toBe(595);
   });
 });
@@ -161,6 +166,9 @@ describe("volumen", () => {
     expect(E.volumeAdvice(0.8, "en_rango").action).toBe("subir");
     expect(E.volumeAdvice(0.3, "en_rango").action).toBe("revisar");
     expect(E.junkSetsInSession(14)).toBe(4);
+    expect(E.weeklyEquivalentSets(48, 14)).toBe(24);
+    expect(E.weeklyEquivalentSets(18, 9)).toBe(14);
+    expect(E.LEVEL_WEEKLY_SETS[2]).toEqual([10, 16]);
   });
   it("REF del Excel: 130 kg × 3 con 1RM 140 = 0,42", () => {
     expect(E.refIndex(130, 3, 140)).toBeCloseTo(0.42, 6);
@@ -248,10 +256,14 @@ describe("nutrición", () => {
     expect(p.on.proteinG * 4 + p.on.fatG * 9 + p.on.carbG * 4).toBeCloseTo(p.on.kcal, -1);
     expect(p.on.intraCarbG![0]).toBeLessThan(p.on.intraCarbG![1]);
   });
-  it("recorta el déficit al 25 % del gasto", () => {
+  it("recorta el déficit al 25 % del gasto y no baja de 24 kcal por kg", () => {
+    const noFloor = E.planTargets({ kg: 92, leanKg: 66, tdee: 2400, ratePctWeek: 1, trainDaysPerWeek: 5, floorKcalPerKg: 0 });
+    expect(noFloor).toMatchObject({ capped: true, floored: false, avgKcal: 1800 });
     const p = E.planTargets({ kg: 92, leanKg: 66, tdee: 2400, ratePctWeek: 1, trainDaysPerWeek: 5 });
-    expect(p.capped).toBe(true);
-    expect(p.avgKcal).toBe(1800);
+    expect(p).toMatchObject({ floored: true, avgKcal: 2208 });
+    expect(p.warnings.join(" ")).toMatch(/24 kcal por kg/);
+    expect(E.maxRateByBodyFat(29)).toBe(1);
+    expect(E.maxRateByBodyFat(12)).toBe(0.6);
   });
   it("ritmo objetivo: más rápido lejos del objetivo", () => {
     expect(E.targetRatePct(92, 84)).toBe(0.8);
@@ -300,6 +312,9 @@ describe("cardio", () => {
     expect(E.zoneOf(z[1].from + 2, 22, 60)).toBe(2);
     expect(E.zoneOf(50, 22, 60)).toBe(0);
     expect(E.ecos(40, 2)).toBe(80);
+    expect(E.ecos(40, 2, "bici")).toBe(40);
+    expect(E.ecos(20, 5, "carrera")).toBe(120);
+    expect(E.ecos(10, 4, "bici", 2)).toBe(40);
     expect(E.strengthEnduranceRatio(5, 1)).toEqual({ ratio: 5, ok: true });
     expect(E.strengthEnduranceRatio(3, 3).ok).toBe(false);
     expect(E.stepsGoal(false)).toBe(12000);

@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema Físico
 
-## Getting Started
+Sistema operativo físico personal de Alex: entreno con progresión propuesta, nutrición On/Off, cardio y reloj, y un servidor MCP con OAuth para manejarlo desde Muse. Sustituye a `SISTEMA-ALEX-APP`.
 
-First, run the development server:
+Estado, credenciales pendientes y lo que no está verificado: [`TRASPASO.md`](TRASPASO.md).
+
+## Arrancar en local (sin credenciales)
 
 ```bash
+npm install
+cp .env.example .env.local     # AUTH_MODE=dev ya viene puesto
+npm run db:seed                # crea la base local (.data/pglite) y carga el catálogo
+npm run import:legacy -- "../VIDA/_datos/supabase-2026-11-15"   # opcional: tus 102 sesiones
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sin `DATABASE_URL` la app usa PGlite: Postgres real embebido, con las mismas migraciones y el mismo RLS que producción. No hace falta Docker.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Piezas
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Carpeta | Qué hay |
+|---|---|
+| `src/engine/` | Motor científico: funciones puras con tests. Mapa en [`docs/MOTOR.md`](docs/MOTOR.md) |
+| `supabase/migrations/` | Esquema `fit` (no expuesto por la API de Supabase) con RLS por fila |
+| `src/db/client.ts` | Una interfaz, dos motores (pg en producción, PGlite en local). `withUser()` activa el RLS |
+| `src/server/services/` | Casos de uso: entreno, plan, bienestar, nutrición, cardio, salud, medios |
+| `src/server/oauth.ts`, `src/server/mcp/` | Servidor OAuth 2.1 (registro dinámico, PKCE) y herramientas MCP |
+| `src/app/` | PWA (Next.js 16) y rutas: `/api/mcp`, `/api/ingest/health`, `/oauth/*`, `/.well-known/*` |
+| `data/seed/` | Catálogo: ejercicios, programas, glosario y alimentos |
+| `scripts/` | Semillas, importación del histórico y extractores de los Excels |
 
-## Learn More
+## Comandos
 
-To learn more about Next.js, take a look at the following resources:
+| Comando | Para qué |
+|---|---|
+| `npm test` | Motor, base de datos con RLS, servicios, OAuth y MCP |
+| `npm run typecheck` | Tipos |
+| `npm run build` | Compilación de producción |
+| `npm run db:seed` | Migraciones (en Postgres) y catálogo. Idempotente |
+| `npm run import:legacy -- <carpeta>` | Hereda el histórico de la app antigua. Idempotente |
+| `npm run hash-password` | Genera `OWNER_PASSWORD_HASH` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Reglas del repo
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `.env*` no se sube (solo `.env.example`). Las claves de la app antigua no se copian aquí.
+- Ninguna fórmula vive en una pantalla: todo cálculo está en `src/engine/` con su test.
+- Todo dato del atleta pasa por `withUser()`. El rol propietario solo se usa para el alta, OAuth y tokens de ingesta.
+- Los Excels originales y los exports con datos personales se quedan fuera del repo.

@@ -80,6 +80,8 @@ export type PlanInput = {
   onOffSpread?: number;
   proteinPerLeanKg?: number;
   fatPerKg?: number;
+  /** Suelo de calorías medias: 24 kcal por kg de peso (cuaderno del máster). 0 lo desactiva. */
+  floorKcalPerKg?: number;
 };
 
 export type DayTarget = { kcal: number; proteinG: number; fatG: number; carbG: number; intraCarbG?: [number, number] };
@@ -91,6 +93,9 @@ export function planTargets(i: PlanInput) {
   let deficit = (i.kg * (i.ratePctWeek / 100) * 7700) / 7;
   const capped = deficit > i.tdee * 0.25;
   if (capped) deficit = i.tdee * 0.25;
+  const floor = (i.floorKcalPerKg ?? 24) * i.kg;
+  const floored = floor > 0 && i.tdee - deficit < floor && i.tdee > floor;
+  if (floored) deficit = i.tdee - floor;
   const avg = i.tdee - deficit;
   // On − Off = spread × media, con el total semanal intacto.
   const on = avg + (spread * avg * nOff) / 7;
@@ -108,12 +113,14 @@ export function planTargets(i: PlanInput) {
     deficitKcal: Math.round(deficit),
     deficitPct: Math.round((deficit / i.tdee) * 100),
     capped,
+    floored,
     weeklyKcal: Math.round(on) * nOn + Math.round(off) * nOff,
     on: onDay,
     off: offDay,
     expectedKgPerWeek: Math.round(((deficit * 7) / 7700) * 100) / 100,
     warnings: [
       ...(capped ? ["El déficit pedido supera el 25 % del gasto: se recorta a ese tope."] : []),
+      ...(floored ? ["No se baja de " + Math.round(floor) + " kcal de media (24 kcal por kg): para perder más rápido, sube actividad."] : []),
       ...(offDay.carbG < 100 ? ["Menos de 100 g de hidratos en día Off: antes de bajar más, sube pasos."] : []),
     ],
   };
@@ -142,6 +149,9 @@ export function weeklyDecision(i: {
   }
   return { action: "mantener", why: waistMoving && loss < i.targetPct * 0.5 ? "La báscula va lenta pero la cintura baja: se mantiene." : "En ritmo. No se toca." };
 }
+
+/** Regla del cuaderno para el ritmo máximo: % graso / 20 (% del peso por semana), con techo en 1 %. */
+export const maxRateByBodyFat = (bfPct: number) => Math.round(Math.min(1, bfPct / 20) * 100) / 100;
 
 /* ----------------------------- Cafeína ----------------------------- */
 

@@ -88,14 +88,28 @@ export function meanRelativeIntensity(sets: SetLog[], oneRm: number): number | n
 }
 
 /**
- * Índice de estrés por serie (tabla de Robert Frederick en la hoja «Sistema Supremo»: RIR 4 = 0,6 … RIR 0 = 1,6).
- * La fuente da solo los extremos; entre ellos se interpola lineal. Heurística.
+ * Índice de estrés por serie (tabla de Robert Frederick / Tuchscherer, cuaderno del máster):
+ * RIR 4 = 0,6 · RIR 3 = 0,8 · RIR 2 = 1,0 · RIR 1 = 1,2 · RIR 0 = 1,6. Medios puntos, interpolados. Heurística.
  */
-export const setStress = (rir: number | null) => Math.max(0.1, 1.6 - 0.25 * (rir ?? 2));
+const STRESS_BY_RIR = [1.6, 1.2, 1.0, 0.8, 0.6];
+export function setStress(rir: number | null): number {
+  const r = Math.max(0, rir ?? 2);
+  if (r >= 4) return Math.max(0.2, 0.6 - 0.2 * (r - 4));
+  const lo = Math.floor(r);
+  return Math.round((STRESS_BY_RIR[lo] + (STRESS_BY_RIR[lo + 1] - STRESS_BY_RIR[lo]) * (r - lo)) * 100) / 100;
+}
 
 export type StressBand = "ligero" | "medio" | "duro";
-/** Estrés semanal de un grupo muscular o de un básico. > 26 = duro (umbral de la fuente). */
+const sumStress = (sets: SetLog[]) => Math.round(sets.reduce((a, s) => a + setStress(s.rir), 0) * 10) / 10;
+
+/** Estrés de UNA sesión para un grupo muscular o patrón: fácil 2,5 · moderado 3,5 · duro 4,5. */
+export function sessionStress(sets: SetLog[]): { value: number; band: StressBand } {
+  const value = sumStress(sets);
+  return { value, band: value >= 4.5 ? "duro" : value >= 3.5 ? "medio" : "ligero" };
+}
+
+/** Estrés semanal de un grupo muscular o patrón de movimiento: fácil 14 · moderado 20 · duro 26. */
 export function weeklyStress(sets: SetLog[]): { value: number; band: StressBand } {
-  const value = Math.round(sets.reduce((a, s) => a + setStress(s.rir), 0) * 10) / 10;
-  return { value, band: value > 26 ? "duro" : value >= 13 ? "medio" : "ligero" };
+  const value = sumStress(sets);
+  return { value, band: value >= 26 ? "duro" : value >= 20 ? "medio" : "ligero" };
 }

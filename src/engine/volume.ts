@@ -32,6 +32,16 @@ export function volumeStatus(sets: number, mev: number, mrv: number): VolumeStat
   return sets >= mev + (mrv - mev) * 0.85 ? "cerca_mrv" : "en_rango";
 }
 
+/** Series semanales orientativas por grupo según nivel (cuaderno del máster). Arranque, no ley. */
+export const LEVEL_WEEKLY_SETS: Record<1 | 2 | 3 | 4, [number, number]> = { 1: [6, 10], 2: [10, 16], 3: [16, 20], 4: [16, 25] };
+
+/**
+ * Volumen de un microciclo que no dura 7 días, expresado en series por semana: series ÷ días × 7.
+ * MEV y MRV están definidos por semana: comparar el total de un microciclo de 9 o 14 días tal cual infla la fatiga real.
+ */
+export const weeklyEquivalentSets = (sets: number, cycleDays: number) =>
+  cycleDays > 0 ? Math.round((sets / cycleDays) * 7 * 10) / 10 : sets;
+
 /** Tope útil por sesión y grupo: la curva se aplana a partir de ~8-10 series (Ibon). */
 export const SESSION_CAP = 10;
 export const junkSetsInSession = (setsForMuscle: number) => Math.max(0, setsForMuscle - SESSION_CAP);
