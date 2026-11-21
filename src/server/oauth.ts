@@ -219,7 +219,8 @@ export async function registerClient(metadata: unknown, db?: Db): Promise<Client
   const now = oauthClock.now();
   const clientId = randomUUID();
   const secret = method === "client_secret_post" ? randomSecret() : null;
-  const extra = { client_uri: b.client_uri ?? null, logo_uri: b.logo_uri ?? null, software_id: b.software_id ?? null, software_version: b.software_version ?? null, scope };
+  // En metadata.scope solo lo que el cliente declaró: /authorize lo usa si luego no pide ninguno (ver validateAuthorizeRequest).
+  const extra = { client_uri: b.client_uri ?? null, logo_uri: b.logo_uri ?? null, software_id: b.software_id ?? null, software_version: b.software_version ?? null, scope: asked.join(" ") };
 
   const limited = await asSystem(async (tx) => {
     // Limpieza de paso: lo caducado hace más de un día y los clientes que nunca llegaron a pedir permiso.
@@ -330,9 +331,13 @@ export async function validateAuthorizeRequest(params: AuthorizeParams, db?: Db)
   // En este origen solo hay un recurso (el MCP): se acepta cualquier ruta del mismo origen
   // (el cliente de Meta, por ejemplo, manda el origen o «/mcp») y el token queda ligado a /api/mcp.
   const resource = mcpResource();
+  // Al reconectar, el cliente de Meta manda el host truncado («fitos-system.vercel» sin «.app»): se acepta
+  // si es un prefijo de etiquetas del nuestro. Un host ajeno sigue siendo invalid_target.
   if (params.resource !== undefined) {
     const asked = normalizeResource(params.resource);
-    if (!asked || new URL(asked).origin !== new URL(resource).origin) return fail("invalid_target", "unknown resource");
+    const ours = new URL(resource).hostname;
+    const host = asked ? new URL(asked).hostname : "";
+    if (!host || (host !== ours && !ours.startsWith(`${host}.`))) return fail("invalid_target", "unknown resource");
   }
 
   return { ok: true, client, redirectUri, scope, state, codeChallenge: params.code_challenge, resource };

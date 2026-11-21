@@ -149,6 +149,15 @@ describe("validación de /oauth/authorize", () => {
     expect(r2).toMatchObject({ ok: true, scope: ["mcp:read", "mcp:plan"] });
   });
 
+  it("tolera lo que manda el cliente de Meta: comas, scopes ajenos, host truncado y scopes del registro", async () => {
+    const p = await base();
+    expect(await validateAuthorizeRequest({ ...p, scope: "mcp:read,mcp:log" }, db)).toMatchObject({ ok: true, scope: ["mcp:read", "mcp:log"] });
+    expect(await validateAuthorizeRequest({ ...p, scope: "mcp:read offline_access" }, db)).toMatchObject({ ok: true, scope: ["mcp:read"] });
+    expect(await validateAuthorizeRequest({ ...p, resource: "https://fit/api/mcp" }, db)).toMatchObject({ ok: true, resource: `${APP}/api/mcp` });
+    const meta = await newClient({ scope: "mcp:read mcp:log" });
+    expect(await validateAuthorizeRequest({ ...p, client_id: meta.client_id }, db)).toMatchObject({ ok: true, scope: ["mcp:read", "mcp:log"] });
+  });
+
   it("cliente desconocido o redirect_uri no registrado: error NO redirigible", async () => {
     const p = await base();
     for (const bad of [
@@ -173,7 +182,7 @@ describe("validación de /oauth/authorize", () => {
       [{ ...p, code_challenge: undefined }, "invalid_request"],
       [{ ...p, code_challenge_method: "plain" }, "invalid_request"],
       [{ ...p, code_challenge_method: undefined }, "invalid_request"],
-      [{ ...p, scope: "mcp:read admin" }, "invalid_scope"],
+      [{ ...p, scope: "admin" }, "invalid_scope"],
       [{ ...p, resource: "https://otro.example/api/mcp" }, "invalid_target"],
     ];
     for (const [params, error] of cases) {
