@@ -22,6 +22,7 @@ const READ = [
   "get_today", "get_plan", "get_next_session", "get_workout", "list_workouts", "get_exercise_history", "search_exercises", "find_exercise_alternatives",
   "get_nutrition_day", "get_nutrition_targets", "search_foods", "lookup_barcode", "get_progress", "get_load_status", "get_volume_status", "get_cardio_week", "get_activity",
   "get_checkins", "list_annotations", "get_glossary", "get_onboarding_status", "list_videos", "get_gear_patterns", "list_meal_templates", "list_program_templates",
+  "list_unlinked_exercise_names",
 ];
 const LOG = [
   "start_workout", "log_set", "update_set", "delete_set", "add_exercise_to_workout", "swap_exercise", "finish_workout", "log_food", "update_food_log",
@@ -30,7 +31,7 @@ const LOG = [
 ];
 const PLAN = [
   "activate_program", "set_deload", "set_volume_target", "recalc_nutrition_targets", "set_day_type", "build_shopping_list", "weekly_review", "update_profile",
-  "save_meal_template", "update_food_price", "create_exercise", "add_exercise_alias",
+  "save_meal_template", "update_food_price", "create_exercise", "add_exercise_alias", "link_exercise_name",
 ];
 
 let user: string;
@@ -123,19 +124,19 @@ describe("catálogo de herramientas", () => {
   it("tools/list filtra por scope", async () => {
     const list = async (scope: Scope[]) => ((await rpc((await tokenFor(scope)).access, "tools/list")).result!.tools as Array<{ name: string; annotations: Record<string, boolean> }>);
     const read = await list(["mcp:read"]);
-    expect(read).toHaveLength(27);
+    expect(read).toHaveLength(28);
     expect(read.map((t) => t.name)).toEqual(expect.arrayContaining(READ));
     expect(read.every((t) => t.annotations.readOnlyHint)).toBe(true);
     expect(read.map((t) => t.name)).not.toContain("log_set");
 
     const log = await list(["mcp:read", "mcp:log"]);
-    expect(log).toHaveLength(51);
+    expect(log).toHaveLength(52);
     expect(log.map((t) => t.name)).not.toContain("activate_program");
     expect(log.find((t) => t.name === "delete_set")!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     expect(log.find((t) => t.name === "log_set")!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false });
 
     const all = await list(ALL);
-    expect(all).toHaveLength(63);
+    expect(all).toHaveLength(65);
     expect(all.map((t) => t.name)).toEqual(expect.arrayContaining([...READ, ...LOG, ...PLAN]));
   });
 
@@ -450,6 +451,20 @@ describe("permisos y auditoría", () => {
     const alias = await ok(t, "add_exercise_alias", { exerciseId: ex.exercise.id, alias: "la araña" });
     expect(alias.summary).toBe("«la araña» ya vale como nombre de Curl araña en banco.");
     expect((await ok(t, "search_exercises", { q: "la araña" })).exercises[0].id).toBe(ex.exercise.id);
+
+    // Histórico sin enlazar: se lista con candidatos y se enlaza (el texto pasa a ser alias).
+    await withUser(user, async (tx) => {
+      const [w] = await tx.query<{ id: string }>("insert into fit.workouts (date, name, status) values ($1, 'Importada', 'hecha') returning id", [addDays(D, -400)]);
+      await tx.query("insert into fit.workout_sets (workout_id, exercise_name_raw, exercise_position, set_index, kg, reps) values ($1, 'curl arana en banco inclinado', 1, 1, 14, 10), ($1, 'curl arana en banco inclinado', 1, 2, 14, 9)", [w.id]);
+    });
+    const unlinked = await ok(t, "list_unlinked_exercise_names");
+    expect(unlinked.names).toEqual([expect.objectContaining({ rawName: "curl arana en banco inclinado", sets: 2 })]);
+    const linked = await ok(t, "link_exercise_name", { rawName: "curl arana en banco inclinado", exerciseId: ex.exercise.id });
+    expect(linked).toMatchObject({ linked: 2, aliasAdded: true });
+    expect((await ok(t, "list_unlinked_exercise_names")).names).toEqual([]);
+
+    const free = await ok(t, "set_day_type", { date: addDays(D, 4), dayType: "libre" });
+    expect(free.summary).toContain("libre");
 
     const program = await ok(t, "activate_program", { slug: "torso-pierna-6d", startDate: addDays(D, 30) });
     expect(program.summary).toContain("Programa activado");

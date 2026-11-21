@@ -135,4 +135,17 @@ describe("medidas corporales", () => {
     await expect(logBodyMetrics(a, { date: "2026-11-17" }, db)).rejects.toMatchObject({ code: "entrada_invalida" });
     await expect(logBodyMetrics(a, { weightKg: 5 }, db)).rejects.toMatchObject({ code: "entrada_invalida" });
   });
+
+  it("composición medida (InBody): se guarda tal cual y no se recalcula por perímetros", async () => {
+    const m = await logBodyMetrics(a, {
+      date: "2026-11-23", weightKg: 90, waistCm: 95, skeletalMuscleKg: 40.2, bfPct: 18.5, bfMethod: "inbody", forearmCm: 30, shoulderWidthCm: 120,
+    }, db);
+    expect(m).toMatchObject({ bfPct: 18.5, bfMethod: "inbody", skeletalMuscleKg: 40.2, forearmCm: 30, shoulderWidthCm: 120, bfMarginPts: 4 }); // InBody es bioimpedancia: ±4
+    expect(m.leanKg).toBe(73.4); // 90 × (1 − 0,185) = 73,35, redondeado a un decimal
+    // Un registro posterior del mismo día con cuello no pisa el valor medido con Navy.
+    const later = await logBodyMetrics(a, { date: "2026-11-23", neckCm: 40 }, db);
+    expect(later).toMatchObject({ bfPct: 18.5, bfMethod: "inbody", neckCm: 40, skeletalMuscleKg: 40.2 });
+    // Sin método, queda como «medido».
+    expect(await logBodyMetrics(a, { date: "2026-11-24", weightKg: 90, bfPct: 19 }, db)).toMatchObject({ bfPct: 19, bfMethod: "medido" });
+  });
 });

@@ -39,7 +39,7 @@ const getCheckinsTool = defineTool({
 const getOnboardingStatusTool = defineTool({
   name: "get_onboarding_status",
   title: "Qué falta en la ficha",
-  description: "Úsala si get_today dice que la ficha está incompleta: devuelve qué datos faltan, con la pregunta exacta que hay que hacerle al atleta y por qué importa cada uno.",
+  description: "Úsala si get_today dice que la ficha está incompleta: devuelve qué datos faltan, con la pregunta exacta que hay que hacerle al atleta y por qué importa cada uno, las preguntas opcionales (lesión o molestia) y las de la ficha de ingreso que aún no ha contestado (intakeMissing).",
   scope: "mcp:read",
   readOnly: true,
   input: z.object({}),
@@ -49,7 +49,7 @@ const getOnboardingStatusTool = defineTool({
 const logBodyMetricsTool = defineTool({
   name: "log_body_metrics",
   title: "Registrar peso y medidas",
-  description: "Úsala cuando el atleta diga su peso («hoy 79,4») o una medida (cintura, cuello, brazo…): guarda solo lo que envíes en el día indicado y devuelve el % graso estimado si la altura está confirmada.",
+  description: "Úsala cuando el atleta diga su peso («hoy 79,4») o una medida (cintura, cuello, brazo…): guarda solo lo que envíes en el día indicado y devuelve el % graso estimado si la altura está confirmada. Si trae un % graso medido (InBody, DEXA…) con bfPct y bfMethod, se guarda tal cual y no se recalcula por perímetros; también acepta masa muscular esquelética, antebrazo y ancho de hombros.",
   scope: "mcp:log",
   readOnly: false,
   idempotent: true,
@@ -59,11 +59,13 @@ const logBodyMetricsTool = defineTool({
     const parts = [
       args.weightKg != null && `${num(args.weightKg)} kg`, args.waistCm != null && `cintura ${num(args.waistCm)} cm`, args.neckCm != null && `cuello ${num(args.neckCm)} cm`,
       args.hipCm != null && `cadera ${num(args.hipCm)} cm`, args.chestCm != null && `pecho ${num(args.chestCm)} cm`, args.armCm != null && `brazo ${num(args.armCm)} cm`,
-      args.thighCm != null && `muslo ${num(args.thighCm)} cm`, args.calfCm != null && `gemelo ${num(args.calfCm)} cm`, args.skinfolds && "pliegues", args.note && "nota",
+      args.thighCm != null && `muslo ${num(args.thighCm)} cm`, args.calfCm != null && `gemelo ${num(args.calfCm)} cm`,
+      args.forearmCm != null && `antebrazo ${num(args.forearmCm)} cm`, args.shoulderWidthCm != null && `hombros ${num(args.shoulderWidthCm)} cm`,
+      args.skeletalMuscleKg != null && `músculo esquelético ${num(args.skeletalMuscleKg)} kg`, args.bfPct != null && `% graso medido ${num(args.bfPct)}${args.bfMethod ? ` (${args.bfMethod})` : ""}`, args.skinfolds && "pliegues", args.note && "nota",
     ].filter(Boolean);
     return {
       summary: `Guardado el ${m.date}: ${parts.join(", ")}.${m.bfPct != null ? ` Grasa estimada: ${num(m.bfPct)} %${m.bfMarginPts != null ? ` (± ${num(m.bfMarginPts)})` : ""}.` : ""}`,
-      date: m.date, weightKg: m.weightKg, waistCm: m.waistCm, bfPct: m.bfPct, bfMethod: m.bfMethod, leanKg: m.leanKg != null ? r1(m.leanKg) : null,
+      date: m.date, weightKg: m.weightKg, waistCm: m.waistCm, bfPct: m.bfPct, bfMethod: m.bfMethod, skeletalMuscleKg: m.skeletalMuscleKg, leanKg: m.leanKg != null ? r1(m.leanKg) : null,
       warnings: m.warnings,
     };
   },

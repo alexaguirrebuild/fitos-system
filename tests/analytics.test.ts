@@ -114,6 +114,31 @@ describe("carga (ACWR)", () => {
     expect(second).toBeCloseTo(120.25, 1);
     expect(s.deload.signals.join(" ")).toContain("La fuerza cae dos sesiones seguidas");
   });
+
+  it("sueño corto en 3 de 7 noches y dolor tendinoso > 5 son señales; juntas, descarga", async () => {
+    // Atleta sin sesiones: solo cuentan estas dos señales.
+    for (const [d, h] of [["2026-11-14", 6], ["2026-11-15", 8], ["2026-11-16", 6.5], ["2026-11-17", 7.5]] as const)
+      await saveCheckin(empty, { date: d, sleepQuality: 6, sleepHours: h, stress: 4, motivation: 7, pain: 2, fatigue: 4 }, db);
+    let s = await getLoadStatus(empty, "2026-11-18", db);
+    expect(s.signals).toMatchObject({ shortSleepNights: 2, tendonPain: null });
+    expect(s.deload.signals).toEqual([]);
+
+    await saveCheckin(empty, { date: "2026-11-18", sleepQuality: 5, sleepHours: 5.5, stress: 4, motivation: 7, pain: 2, fatigue: 4 }, db);
+    s = await getLoadStatus(empty, "2026-11-18", db);
+    expect(s.signals.shortSleepNights).toBe(3);
+    expect(s.deload).toMatchObject({ deload: false, signals: ["3 de las últimas 7 noches por debajo de 7 h"] });
+
+    // Dolor de tobillo 6/10 (check-in, que también lo apunta en la lesión): segunda señal.
+    await saveCheckin(empty, { date: "2026-11-18", sleepQuality: 5, sleepHours: 5.5, stress: 4, motivation: 7, pain: 2, fatigue: 4, anklePain: 6 }, db);
+    s = await getLoadStatus(empty, "2026-11-18", db);
+    expect(s.signals.tendonPain).toBe(6);
+    expect(s.deload.deload).toBe(true);
+    expect(s.deload.signals).toContain("Dolor tendinoso de 6/10");
+    // Con 5/10 no es señal (Pain-Monitoring Model: hasta 5 se puede cargar).
+    await saveCheckin(empty, { date: "2026-11-18", sleepQuality: 5, sleepHours: 5.5, stress: 4, motivation: 7, pain: 2, fatigue: 4, anklePain: 5 }, db);
+    await withUser(empty, (tx) => tx.query("update fit.injury_logs set pain = 5 where date = '2026-11-18'"), db);
+    expect((await getLoadStatus(empty, "2026-11-18", db)).deload.deload).toBe(false);
+  });
 });
 
 describe("volumen por grupo", () => {
@@ -148,6 +173,22 @@ describe("volumen por grupo", () => {
     const v = await getVolumeStatus(a, { microcycleId: plan.microcycle.id }, db);
     expect([v.from, v.to, v.days]).toEqual(["2026-11-02", "2026-11-15", 14]);
     expect(v.muscles.find((m) => m.muscleId === "biceps")).toMatchObject({ sets: 4, setsPerWeek: 2 });
+  });
+
+  it("en déficit no sube series aunque el grupo progrese: se congelan en 12-16", async () => {
+    const before = await getVolumeStatus(a, { from: "2026-10-14", to: "2026-10-20" }, db);
+    expect(before.inDeficit).toBe(false);
+    await withUser(a, (tx) => tx.query(
+      `insert into fit.nutrition_targets (valid_from, phase, tdee, tdee_method, avg_kcal, on_kcal, on_protein_g, on_carbs_g, on_fat_g, off_kcal, off_protein_g, off_carbs_g, off_fat_g)
+       values ('2026-10-01', 'deficit', 2700, 'medido', 2200, 2300, 180, 220, 70, 2160, 180, 185, 70)`), db);
+    const v = await getVolumeStatus(a, { from: "2026-10-14", to: "2026-10-20" }, db);
+    expect(v.inDeficit).toBe(true);
+    const pec = v.muscles.find((m) => m.muscleId === "pectoral")!;
+    // Pectoral (MEV propio 3): progresa el 100 % y fuera de déficit se proponía subir.
+    expect(pec.progressRate).toBe(1);
+    expect(pec.advice.action).toBe("mantener");
+    expect(pec.advice.why).toMatch(/12-16/);
+    await withUser(a, (tx) => tx.query("delete from fit.nutrition_targets"), db);
   });
 });
 

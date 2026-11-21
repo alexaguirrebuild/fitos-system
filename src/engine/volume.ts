@@ -12,7 +12,10 @@ export const isHardSet = (s: SetLog) => s.reps > 0 && (s.rir == null || s.rir <=
 
 export type MuscleEntry = { primary: string; secondary?: string[]; sets: SetLog[] };
 
-/** Series efectivas por grupo: 1 al principal y 0,5 a cada sinergista (convención, no medición). */
+/**
+ * Series efectivas por grupo: 1 al principal y 0,5 a cada sinergista. Es el método de conteo con más evidencia
+ * relativa para predecir adaptaciones (Pelland 2026, PMID 41343037).
+ */
 export function hardSetsByMuscle(entries: MuscleEntry[]): Record<string, number> {
   const out: Record<string, number> = {};
   for (const e of entries) {
@@ -36,6 +39,16 @@ export function volumeStatus(sets: number, mev: number, mrv: number): VolumeStat
 export const LEVEL_WEEKLY_SETS: Record<1 | 2 | 3 | 4, [number, number]> = { 1: [6, 10], 2: [10, 16], 3: [16, 20], 4: [16, 25] };
 
 /**
+ * En déficit, las series semanales por grupo se congelan en 12-16: se progresa carga y RIR, no series.
+ * Decisión derivada (VOL-03): en déficit la ganancia de magra ya está deteriorada (Murphy 2022, PMID 34623696).
+ */
+export const DEFICIT_WEEKLY_SETS: [number, number] = [12, 16];
+
+/** Rango semanal de series por grupo según nivel y fase. */
+export const weeklySetsRange = (level: 1 | 2 | 3 | 4, inDeficit = false): [number, number] =>
+  inDeficit ? DEFICIT_WEEKLY_SETS : LEVEL_WEEKLY_SETS[level];
+
+/**
  * Volumen de un microciclo que no dura 7 días, expresado en series por semana: series ÷ días × 7.
  * MEV y MRV están definidos por semana: comparar el total de un microciclo de 9 o 14 días tal cual infla la fatiga real.
  */
@@ -46,8 +59,20 @@ export const weeklyEquivalentSets = (sets: number, cycleDays: number) =>
 export const SESSION_CAP = 10;
 export const junkSetsInSession = (setsForMuscle: number) => Math.max(0, setsForMuscle - SESSION_CAP);
 
-/** Qué hacer con el volumen de un grupo según el % de ejercicios que progresan. */
-export function volumeAdvice(rate: number | null, status: VolumeStatus) {
+/**
+ * Qué hacer con el volumen de un grupo según el % de ejercicios que progresan.
+ * En déficit (con `deficit.setsPerWeek`) no se progresa volumen: por encima de 16 series se baja a 16, bajo el MEV se sube
+ * hasta el MEV y en el resto de casos se mantiene. Se progresa carga y RIR.
+ */
+export function volumeAdvice(rate: number | null, status: VolumeStatus, deficit?: { setsPerWeek: number } | null) {
+  if (deficit) {
+    if (status === "sobre_mrv") return { action: "bajar" as const, why: "Por encima del máximo recuperable." };
+    const [lo, hi] = DEFICIT_WEEKLY_SETS;
+    if (deficit.setsPerWeek > hi) return { action: "bajar" as const, why: `En déficit el volumen se congela en ${lo}-${hi} series por semana: baja a ${hi} y progresa carga y RIR.` };
+    if (status === "bajo_mev") return { action: "subir" as const, why: "Por debajo de tu mínimo efectivo: sube hasta el MEV, no más. En déficit no se añade volumen por encima." };
+    if (rate != null && rate < 0.4) return { action: "revisar" as const, why: "Progresa menos del 40 %: en déficit es esperable. Revisa sueño, proteína y RIR antes de tocar series." };
+    return { action: "mantener" as const, why: `En déficit: series congeladas en ${lo}-${hi}. Progresa carga y RIR, no series.` };
+  }
   if (rate == null) return { action: "mantener" as const, why: "Aún no hay dos sesiones que comparar." };
   if (status === "sobre_mrv") return { action: "bajar" as const, why: "Por encima del máximo recuperable." };
   if (rate >= 0.7 && status !== "cerca_mrv")

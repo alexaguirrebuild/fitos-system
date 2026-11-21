@@ -27,7 +27,7 @@ const compactLog = (l: FoodLog) => lean({
   id: l.id, meal: l.meal, what: l.foodName ?? l.description, grams: l.grams, kcal: r0(l.kcal), proteinG: r1(l.proteinG), carbsG: r1(l.carbsG), fatG: r1(l.fatG),
   estimated: l.estimated || null,
 });
-const compactDay = (d: DayTotals) => ({ date: d.date, dayType: d.dayType, target: roundMacros(d.target), totals: roundMacros(d.totals), remaining: roundMacros(d.remaining) });
+const compactDay = (d: DayTotals) => ({ date: d.date, dayType: d.free ? "libre" : d.dayType, target: roundMacros(d.target), totals: roundMacros(d.totals), remaining: roundMacros(d.remaining) });
 /** «Llevas 1.200 de 2.300 kcal; te quedan 80 g de proteína.» */
 const dayText = (d: DayTotals) =>
   d.target && d.remaining
@@ -52,12 +52,12 @@ const getNutritionDayTool = defineTool({
     const d = await getNutritionDay(ctx.userId, args);
     const logs = cut(d.logs.map(compactLog), DEFAULT_LIMIT);
     return {
-      date: d.date, dayType: d.dayType, dayTypeForced: d.dayTypeForced, dayTypeAssumed: d.dayTypeAssumed, phase: d.phase,
+      date: d.date, dayType: d.dayFree ? "libre" : d.dayType, note: d.note, dayTypeForced: d.dayTypeForced, dayTypeAssumed: d.dayTypeAssumed, phase: d.phase,
       target: roundMacros(d.target), totals: roundMacros(d.totals), remaining: roundMacros(d.remaining), proteinPct: d.proteinPct,
       byMeal: Object.fromEntries(Object.entries(d.byMeal).map(([meal, m]) => [meal, `${m!.items} apuntes, ${r0(m!.kcal)} kcal, ${r0(m!.proteinG)} g de proteína`])),
       logs: logs.items, logsTotal: logs.total, logsTruncated: logs.truncated,
       caffeine: d.caffeine, steps: d.steps,
-      message: d.target ? null : "Aún no hay objetivos de calorías: hacen falta peso, altura confirmada y fecha de nacimiento, y luego recalc_nutrition_targets.",
+      message: d.target || d.dayFree ? null : "Aún no hay objetivos de calorías: hacen falta peso, altura confirmada y fecha de nacimiento, y luego recalc_nutrition_targets.",
     };
   },
 });
@@ -250,22 +250,23 @@ const recalcTargetsTool = defineTool({
     return {
       summary: `${r.saved ? "Objetivos guardados" : "Objetivos sin cambio relevante (no se guarda nada nuevo)"} desde el ${t.validFrom}, fase ${t.phase}: día On ${macrosText(t.on)}; día Off ${macrosText(t.off)}. Gasto ${r0(t.tdee)} kcal (${t.tdeeMethod}).`,
       saved: r.saved, date: r.date, phase: t.phase, tdee: r0(t.tdee), tdeeMethod: t.tdeeMethod, on: roundMacros(t.on), off: roundMacros(t.off),
-      expectedKgPerWeek: r1(r.expectedKgPerWeek), trainDaysPerWeek: r.trainDaysPerWeek, calibration: r.calibration, explain: r.explain.slice(0, 12), warnings: r.warnings,
+      expectedKgPerWeek: r1(r.expectedKgPerWeek), mode: r.mode, requestedRatePct: r.requestedRatePct, effectiveRatePct: r.effectiveRatePct, limitedBy: r.limitedBy,
+      floorKcal: r.floorKcal, proteinPerLeanKg: r.proteinPerLeanKg, proteinPerMealG: r.proteinPerMealG, trainDaysPerWeek: r.trainDaysPerWeek, calibration: r.calibration, explain: r.explain.slice(0, 12), warnings: r.warnings,
     };
   },
 });
 
 const setDayTypeTool = defineTool({
   name: "set_day_type",
-  title: "Forzar día On u Off",
-  description: "Cambia el plan del día: fuerza que un día cuente como On (entreno, más hidratos) u Off, o lo devuelve a automático con «auto». Úsala cuando el atleta mueva un entreno de día y lo confirme. Devuelve el tipo de día resultante.",
+  title: "Forzar día On, Off o libre",
+  description: "Cambia el plan del día: fuerza que un día cuente como On (entreno, más hidratos), Off o «libre» (se registra la comida pero no se juzga: sin objetivo, restante ni déficit), o lo devuelve a automático con «auto». Úsala cuando el atleta mueva un entreno de día y lo confirme. Devuelve el tipo de día resultante.",
   scope: "mcp:plan",
   readOnly: false,
   idempotent: true,
   input: SetDayTypeInput,
   handler: async (ctx, args) => {
     const d = await setDayType(ctx.userId, args);
-    return { summary: `El ${d.date} cuenta como día ${d.dayType === "on" ? "On" : "Off"}${d.forced ? " (forzado)" : " (automático)"}.`, ...d };
+    return { summary: `El ${d.date} cuenta como día ${d.dayType === "on" ? "On" : d.dayType === "libre" ? "libre" : "Off"}${d.forced ? " (forzado)" : " (automático)"}.`, ...d };
   },
 });
 

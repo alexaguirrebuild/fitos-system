@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { asSystem, type Db } from "@/db/client";
+import { equipmentTypeFrom } from "@/server/services/library";
 
 const SEED_DIR = path.join(process.cwd(), "data", "seed");
 const read = <T>(dir: string, file: string): T[] => {
@@ -33,18 +34,20 @@ export async function seedCatalog(db?: Db, dir: string = SEED_DIR) {
     for (const e of bySlug.values())
       await tx.query(
         `insert into fit.exercises (slug, name, aliases, primary_muscle, secondary_muscles, kind, movement_pattern, equipment, stability,
-           resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+           resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues, equipment_type)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
          on conflict (slug) where user_id is null do update set name = excluded.name, aliases = excluded.aliases,
            primary_muscle = excluded.primary_muscle, secondary_muscles = excluded.secondary_muscles, kind = excluded.kind,
            movement_pattern = excluded.movement_pattern, equipment = excluded.equipment, stability = excluded.stability,
            resistance_profile = excluded.resistance_profile, stretch_bias = excluded.stretch_bias, base_cost = excluded.base_cost,
            load_step = excluded.load_step, per_side = excluded.per_side, warmup_kind = excluded.warmup_kind,
-           ankle_load = excluded.ankle_load, impact = excluded.impact, video_urls = excluded.video_urls, cues = excluded.cues`,
+           ankle_load = excluded.ankle_load, impact = excluded.impact, video_urls = excluded.video_urls, cues = excluded.cues,
+           equipment_type = excluded.equipment_type`,
         [e.slug, e.name, e.aliases ?? [], e.primary_muscle ?? null, e.secondary_muscles ?? [], e.kind ?? "aislamiento",
           e.movement_pattern ?? null, e.equipment ?? null, e.stability ?? "bilateral_guiado", e.resistance_profile ?? "constante",
           e.stretch_bias ?? false, e.base_cost ?? 1, e.load_step ?? 2.5, e.per_side ?? false, e.warmup_kind ?? "reducido",
-          e.ankle_load ?? "ninguna", e.impact ?? false, e.video_urls ?? [], e.cues ?? null],
+          e.ankle_load ?? "ninguna", e.impact ?? false, e.video_urls ?? [], e.cues ?? null,
+          (e.equipment_type as string | undefined) ?? equipmentTypeFrom(e.equipment as string | null | undefined)],
       );
     const seen = new Set<string>();
     for (const g of glossary) {

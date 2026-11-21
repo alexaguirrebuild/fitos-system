@@ -13,7 +13,7 @@ import {
 import { IsoDateTime } from "./annotations";
 import { IsoDate, Uuid, ankleStatusTx, dateOrToday, isoTs, parseInput, type AnkleStatus } from "./athlete";
 import {
-  EXERCISE_COLS, alternativesIn, createExerciseTx, getExerciseTx, loadLibraryTx, normalizeText, resolveIn, type Exercise,
+  EQUIPMENT_TYPES, EXERCISE_COLS, alternativesIn, createExerciseTx, getExerciseTx, loadLibraryTx, normalizeText, resolveIn, type Exercise,
 } from "./library";
 import { prescriptionsForTx } from "./plan";
 
@@ -69,6 +69,8 @@ export type SetView = {
   ruleApplied: string | null;
   note: string | null;
   doneAt: string | null;
+  /** Equipo que se usó ese día (libre, multipower, polea…). Null si no se anotó. */
+  equipmentType: string | null;
 };
 
 export type BlockPrescription = {
@@ -162,7 +164,7 @@ const SET_COLS = `s.id, s.workout_id as "workoutId", s.exercise_id as "exerciseI
   s.exercise_position as "exercisePosition", s.set_index as "setIndex", s.set_type as "setType", s.kg, s.reps, s.rir,
   s.kg_target as "kgTarget", s.reps_target as "repsTarget", s.rir_target as "rirTarget", s.per_side as "perSide",
   s.rest_seconds as "restSeconds", s.e1rm, s.e1rm_confidence as "e1rmConfidence", s.effective_reps as "effectiveReps",
-  s.rule_applied as "ruleApplied", s.note, ${isoTs("s.done_at")} as "doneAt"`;
+  s.rule_applied as "ruleApplied", s.note, ${isoTs("s.done_at")} as "doneAt", s.equipment_type as "equipmentType"`;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -188,7 +190,7 @@ function setMetrics(kg: number | null, reps: number | null, rir: number | null, 
 
 /* ───────────────────────── Historial ───────────────────────── */
 
-export type HistorySession = PastSession & { workoutId: string; kneeSleeves: boolean; belt: boolean };
+export type HistorySession = PastSession & { workoutId: string; kneeSleeves: boolean; belt: boolean; equipmentType: string | null };
 
 /**
  * Últimas `sessions` sesiones hechas de cada ejercicio (de la más reciente a la más antigua), solo con series
@@ -199,9 +201,9 @@ export async function historyTx(
 ): Promise<Map<string, HistorySession[]>> {
   const out = new Map<string, HistorySession[]>(exerciseIds.map((id) => [id, []]));
   if (!exerciseIds.length) return out;
-  const rows = await tx.query<{ exerciseId: string; workoutId: string; date: string; kneeSleeves: boolean; belt: boolean; kg: number; reps: number; rir: number | null }>(
+  const rows = await tx.query<{ exerciseId: string; workoutId: string; date: string; kneeSleeves: boolean; belt: boolean; equipmentType: string | null; kg: number; reps: number; rir: number | null }>(
     `select x.* from (
-       select s.exercise_id as "exerciseId", w.id as "workoutId", w.date, w.knee_sleeves as "kneeSleeves", w.belt, s.kg, s.reps, s.rir,
+       select s.exercise_id as "exerciseId", w.id as "workoutId", w.date, w.knee_sleeves as "kneeSleeves", w.belt, s.equipment_type as "equipmentType", s.kg, s.reps, s.rir,
               s.exercise_position, s.set_index,
               dense_rank() over (partition by s.exercise_id order by w.date desc, w.created_at desc, w.id) as rk
        from fit.workout_sets s join fit.workouts w on w.id = s.workout_id
@@ -213,9 +215,10 @@ export async function historyTx(
     const list = out.get(r.exerciseId)!;
     let s = list[list.length - 1];
     if (!s || s.workoutId !== r.workoutId) {
-      s = { workoutId: r.workoutId, date: r.date, kneeSleeves: r.kneeSleeves, belt: r.belt, sets: [] };
+      s = { workoutId: r.workoutId, date: r.date, kneeSleeves: r.kneeSleeves, belt: r.belt, equipmentType: null, sets: [] };
       list.push(s);
     }
+    s.equipmentType ??= r.equipmentType;
     s.sets.push({ kg: r.kg, reps: r.reps, rir: r.rir });
   }
   return out;
@@ -486,6 +489,7 @@ export const LogSetInput = z.object({
   restSeconds: z.number().int().min(0).max(3600).optional().describe("Descanso antes de esta serie, en segundos"),
   force: z.boolean().optional().describe("Guardar aunque sea idéntica a la serie anterior registrada hace menos de 20 s"),
   clientId: z.string().min(1).max(64).optional().describe("Id generado por el cliente (cola sin conexión). Si ya existe para este atleta, no se vuelve a guardar"),
+  equipment: z.enum(EQUIPMENT_TYPES).optional().describe("Equipo que usó ese día: libre, multipower, polea, placas, discos, peso_corporal o cardio. Por defecto, el del ejercicio"),
   doneAt: IsoDateTime.optional().describe("Hora real de la serie (ISO 8601). Por defecto, el momento del registro"),
 });
 export type LogSetInput = z.input<typeof LogSetInput>;
@@ -596,11 +600,11 @@ async function logSetTx(tx: Tx, i: z.output<typeof LogSetInput>): Promise<LogSet
     "select coalesce(max(set_index), 0) + 1 as n from fit.workout_sets where workout_id = $1 and exercise_position = $2", [w.id, entry.position]);
   const [ins] = await tx.query<{ id: string }>(
     `insert into fit.workout_sets (workout_id, exercise_id, exercise_name_raw, exercise_position, set_index, set_type, kg, reps, rir,
-       kg_target, reps_target, rir_target, per_side, rest_seconds, e1rm, e1rm_confidence, effective_reps, rule_applied, note, done_at, client_id)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, coalesce($20::timestamptz, now()), $21) returning id`,
+       kg_target, reps_target, rir_target, per_side, rest_seconds, e1rm, e1rm_confidence, effective_reps, rule_applied, note, done_at, client_id, equipment_type)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, coalesce($20::timestamptz, now()), $21, $22) returning id`,
     [w.id, ex.id, UUID_RE.test(i.exercise) ? null : i.exercise, entry.position, setIndex, i.setType, i.kg, i.reps, rir,
       sug?.kg ?? null, sug ? sug.repsTarget[before.workingSetsDone] ?? null : null, sug?.rirTarget ?? null,
-      i.perSide ?? ex.perSide, i.restSeconds ?? null, m.e1rm, m.confidence, m.effective, sug?.rule ?? null, i.note ?? null, i.doneAt ?? null, i.clientId ?? null]);
+      i.perSide ?? ex.perSide, i.restSeconds ?? null, m.e1rm, m.confidence, m.effective, sug?.rule ?? null, i.note ?? null, i.doneAt ?? null, i.clientId ?? null, i.equipment ?? ex.equipmentType ?? null]);
 
   let pr: { e1rm: number; previous: number } | null = null;
   if (m.e1rm != null && m.confidence !== "baja") {
@@ -635,6 +639,7 @@ export const UpdateSetInput = z.object({
   perSide: z.boolean().optional().describe("La carga es por lado"),
   restSeconds: z.number().int().min(0).max(3600).nullable().optional().describe("Descanso en segundos"),
   note: z.string().max(500).nullable().optional().describe("Nota de la serie"),
+  equipment: z.enum(EQUIPMENT_TYPES).nullable().optional().describe("Equipo que usó ese día. Null para quitarlo"),
 });
 
 type SetWithStatus = SetView & { workoutStatus: Workout["status"] };
@@ -654,9 +659,9 @@ export async function updateSet(userId: string, input: z.input<typeof UpdateSetI
     const m = setMetrics(kg, reps, rir, setType);
     await tx.query(
       `update fit.workout_sets set kg = $1, reps = $2, rir = $3, set_type = $4, per_side = $5, rest_seconds = $6, note = $7,
-         e1rm = $8, e1rm_confidence = $9, effective_reps = $10 where id = $11`,
+         e1rm = $8, e1rm_confidence = $9, effective_reps = $10, equipment_type = $11 where id = $12`,
       [kg, reps, rir, setType, i.perSide ?? cur.perSide, i.restSeconds === undefined ? cur.restSeconds : i.restSeconds,
-        i.note === undefined ? cur.note : i.note, m.e1rm, m.confidence, m.effective, i.setId]);
+        i.note === undefined ? cur.note : i.note, m.e1rm, m.confidence, m.effective, i.equipment === undefined ? cur.equipmentType : i.equipment, i.setId]);
     if (cur.workoutStatus === "hecha") await refreshTotalsTx(tx, cur.workoutId);
     const { workoutStatus: _ws, ...set } = await setByIdTx(tx, i.setId);
     return set;
@@ -896,7 +901,7 @@ export const GetExerciseHistoryInput = z.object({
 export type ExerciseHistory = {
   exercise: Exercise;
   /** De la más reciente a la más antigua. */
-  sessions: { workoutId: string; date: string; sets: SetLog[]; e1rm: number | null; confidence: Confidence | null; tonnage: number; kneeSleeves: boolean; belt: boolean }[];
+  sessions: { workoutId: string; date: string; sets: SetLog[]; e1rm: number | null; confidence: Confidence | null; tonnage: number; kneeSleeves: boolean; belt: boolean; equipmentType: string | null }[];
   best: { e1rm: number; date: string } | null;
   trend: { direction: "sube" | "baja" | "plano" | "sin_datos"; changePct: number | null; sessions: number };
 };
@@ -919,7 +924,7 @@ export async function getExerciseHistory(userId: string, input: z.input<typeof G
     const sessions = past.map((p) => {
       const b = bestE1RM(p.sets);
       return { workoutId: p.workoutId, date: p.date, sets: p.sets, e1rm: b ? round2(b.value) : null, confidence: b?.confidence ?? null,
-        tonnage: round1(tonnage(p.sets)), kneeSleeves: p.kneeSleeves, belt: p.belt };
+        tonnage: round1(tonnage(p.sets)), kneeSleeves: p.kneeSleeves, belt: p.belt, equipmentType: p.equipmentType };
     });
     const withE = sessions.filter((s) => s.e1rm != null);
     const top = withE.reduce<(typeof withE)[number] | null>((a, s) => (!a || s.e1rm! > a.e1rm! ? s : a), null);

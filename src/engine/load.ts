@@ -31,13 +31,18 @@ export function ewma(values: number[], n: number): number[] {
   return out;
 }
 
-export type AcwrZone = "subcarga" | "optimo" | "precaucion" | "pico";
+export type AcwrZone = "subcarga" | "optimo" | "precaucion" | "pico" | "pico_extremo";
 
+/**
+ * 0,8-1,3 es la franja de menor riesgo (Maupin 2020, PMID 32158285). Por encima de 2,0 el riesgo relativo de lesión
+ * fue de 6,5 a 21 (Williams 2017, PMID 28003238). Es una bandera de «salto de carga», no un objetivo (Impellizzeri 2020).
+ */
 export function acwrZone(r: number): AcwrZone {
   if (r < 0.8) return "subcarga";
   if (r <= 1.3) return "optimo";
   if (r <= 1.5) return "precaucion";
-  return "pico";
+  if (r <= 2) return "pico";
+  return "pico_extremo";
 }
 
 export type Acwr = {
