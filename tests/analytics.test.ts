@@ -139,6 +139,19 @@ describe("carga (ACWR)", () => {
     await withUser(empty, (tx) => tx.query("update fit.injury_logs set pain = 5 where date = '2026-11-18'"), db);
     expect((await getLoadStatus(empty, "2026-11-18", db)).deload.deload).toBe(false);
   });
+
+  it("el sueño del reloj cuenta cuando el check-in no trae horas, y el check-in manda si las trae", async () => {
+    // Semana del 1 al 7 de diciembre sin check-ins: tres noches cortas medidas por el reloj.
+    await withUser(empty, (tx) => tx.query(
+      `insert into fit.daily_activity (date, sleep_minutes) values
+         ('2026-12-01', 380), ('2026-12-02', 450), ('2026-12-03', 360), ('2026-12-04', 400)`), db);
+    let s = await getLoadStatus(empty, "2026-12-05", db);
+    expect(s.signals.shortSleepNights).toBe(3);
+    // El 4 el check-in dice 7,5 h: manda sobre los 400 min del reloj.
+    await saveCheckin(empty, { date: "2026-12-04", sleepQuality: 7, sleepHours: 7.5, stress: 3, motivation: 7, pain: 1, fatigue: 3 }, db);
+    s = await getLoadStatus(empty, "2026-12-05", db);
+    expect(s.signals.shortSleepNights).toBe(2);
+  });
 });
 
 describe("volumen por grupo", () => {

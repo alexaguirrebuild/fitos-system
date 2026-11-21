@@ -111,9 +111,14 @@ export async function loadStatusTx(tx: Tx, date: string): Promise<LoadStatus> {
   const examPeriod = await isExamPeriodTx(tx, date);
   const readiness7dAvg = r7?.avg != null ? round1(Number(r7.avg)) : null;
   const maxWeeklyStress = muscleStress.length ? muscleStress[0].value : null;
+  // Horas de cada noche: lo que diga el check-in y, si no, lo que midió el reloj (daily_activity, por Health Connect).
   const [sleep] = await tx.query<{ short: number; logged: number }>(
-    `select count(*) filter (where sleep_hours < 7)::int as short, count(sleep_hours)::int as logged
-     from fit.checkins where date > $1 and date <= $2`, [addDays(date, -7), date]);
+    `select count(*) filter (where h < 7)::int as short, count(h)::int as logged from (
+       select coalesce(c.sleep_hours, a.sleep_minutes / 60.0) as h
+       from (select date, sleep_hours from fit.checkins where sleep_hours is not null and date > $1 and date <= $2) c
+       full join (select date, sleep_minutes from fit.daily_activity where sleep_minutes is not null and date > $1 and date <= $2) a
+         on a.date = c.date
+     ) x`, [addDays(date, -7), date]);
   const shortSleepNights = sleep?.logged ? sleep.short : null;
   const [tendon] = await tx.query<{ pain: number | null }>(
     `select greatest(

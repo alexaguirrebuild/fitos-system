@@ -21,6 +21,12 @@ export const relativeFatMass = (waistCm: number, heightCm: number, sex: Sex) =>
 
 export const waistToHeight = (waistCm: number, heightCm: number) => waistCm / heightCm;
 
+/**
+ * Cintura máxima (cm enteros) para que el índice cintura/altura no pase de `ratio` (0,50: frontera de riesgo
+ * cardiometabólico, AUROC 0,704 frente a 0,671 del IMC; Browning 2010, PMID 20819243). Con 174 cm, 87 cm.
+ */
+export const waistForWhtr = (heightCm: number, ratio = 0.5) => Math.floor(heightCm * ratio + 1e-9);
+
 export type BfMethod = "medido" | "bia" | "navy" | "rfm" | "sin_dato";
 
 /** Bioimpedancia (InBody, Tanita, báscula): error típico de ±3-5 puntos frente a DXA, así que no cuenta como «medido» fino. */
@@ -49,6 +55,8 @@ export function bodyComposition(i: {
     marginPts: method === "sin_dato" ? null : BF_MARGIN_PTS[method],
     leanKg: bfPct == null ? null : Math.round(i.kg * (1 - bfPct / 100) * 10) / 10,
     waistToHeight: i.waistCm ? Math.round(waistToHeight(i.waistCm, i.heightCm) * 100) / 100 : null,
+    /** Cintura que deja el índice cintura/altura en 0,50 o menos. */
+    whtrTargetWaistCm: waistForWhtr(i.heightCm),
   };
 }
 

@@ -139,6 +139,47 @@ describe("§4 · ritmo, carga, descarga y volumen", () => {
   });
 });
 
+describe("pendientes del cruce", () => {
+  const rx: E.Prescription = { sets: 3, repMin: 8, repMax: 10, rirTarget: 1, step: 2.5, kind: "compuesto" };
+  const ses = (date: string, ...s: E.SetLog[]): E.PastSession => ({ date, sets: s });
+  const top = [ses("2026-11-18", { kg: 100, reps: 10, rir: 1 }, { kg: 100, reps: 10, rir: 1 }, { kg: 100, reps: 10, rir: 1 })];
+  const mid = [ses("2026-11-18", { kg: 100, reps: 9, rir: 1 }, { kg: 100, reps: 9, rir: 1 }, { kg: 100, reps: 8, rir: 1 })];
+
+  it("cintura objetivo: con 174 cm, 87 cm para quedar en 0,50 (88 cm da 0,506)", () => {
+    expect(E.waistForWhtr(174)).toBe(87);
+    expect(87 / 174).toBeLessThanOrEqual(0.5);
+    expect(88 / 174).toBeGreaterThan(0.5);
+    expect(E.waistForWhtr(180)).toBe(90);
+    expect(E.bodyComposition({ kg: 90.07, heightCm: 174, waistCm: 100.5, sex: "H", measuredBfPct: 25.8, measuredMethod: "inbody" }).whtrTargetWaistCm).toBe(87);
+  });
+
+  it("en déficit, los compuestos van con un RIR más; los aislamientos no", () => {
+    const normal = E.suggestNext(mid, rx);
+    const cut = E.suggestNext(mid, rx, { inDeficit: true });
+    expect(normal).toMatchObject({ rule: "sumar_rep", rirTarget: 1 });
+    expect(cut).toMatchObject({ rule: "sumar_rep", kg: 100, rirTarget: 2 });
+    expect(cut.why).toMatch(/En déficit/);
+    expect(E.suggestNext(mid, { ...rx, kind: "aislamiento" }, { inDeficit: true }).rirTarget).toBe(1);
+    // Con readiness bajo ya va con +1: no se suma otro.
+    expect(E.suggestNext(mid, rx, { inDeficit: true, readiness: 45 })).toMatchObject({ rule: "readiness_bajo", rirTarget: 2 });
+    // En descarga manda la descarga (+2).
+    expect(E.suggestNext(mid, rx, { inDeficit: true, deload: true }).rirTarget).toBe(3);
+  });
+
+  it("tobillo: si a la mañana siguiente duele más que antes, la próxima pierna no progresa", () => {
+    expect(E.ankleRule(1, 2, 1)).toMatchObject({ restricted: false });
+    expect(E.ankleRule(1, 2, 1).holdProgression).toMatch(/2\/10.*1\/10/);
+    expect(E.ankleRule(1, 2, 1).notes.join(" ")).toMatch(/sin progresar/);
+    expect(E.ankleRule(1, 1, 1).holdProgression).toBeNull();
+    expect(E.ankleRule(1, 2, null).holdProgression).toBeNull(); // sin dato de antes no se juzga
+    // El freno convierte subir carga o sumar rep en repetir.
+    const hold = "El tobillo dolió más a la mañana siguiente.";
+    expect(E.suggestNext(top, rx).rule).toBe("subir_carga");
+    expect(E.suggestNext(top, rx, { holdProgression: hold })).toMatchObject({ rule: "repetir", kg: 100, repsTarget: [10, 10, 10] });
+    expect(E.suggestNext(mid, rx, { holdProgression: hold })).toMatchObject({ rule: "repetir", kg: 100, repsTarget: [9, 9, 8] });
+  });
+});
+
 describe("§5 · lo que el motor hacía mejor que el reglamento se mantiene", () => {
   it("cafeína 9 h, tobillo > 3 y descarga con dos señales", () => {
     expect(E.caffeineCutoff("23:00")).toBe("14:00"); // 9 h, no las 6 del reglamento

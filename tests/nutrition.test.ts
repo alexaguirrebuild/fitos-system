@@ -128,6 +128,7 @@ describe("recalcTargets", () => {
     expect(text).toMatch(/Ritmo real/);
     expect(text).toMatch(new RegExp(`${String(r.proteinPerLeanKg).replace(".", ",")} g por kg de masa magra`));
     expect(text).toMatch(/tampoco el Off/);
+    expect(text).toMatch(/87 cm o menos/); // 174 cm de altura
     // Lo guardado lleva el k usado, no el 2,3 fijo.
     const k = await withUser(med, (tx) => tx.query<{ k: number }>("select protein_per_lean_kg as k from fit.nutrition_targets where valid_from = $1::date", [D]), db);
     expect(Number(k[0].k)).toBe(r.proteinPerLeanKg);

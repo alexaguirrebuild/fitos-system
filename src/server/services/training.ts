@@ -15,6 +15,7 @@ import { IsoDate, Uuid, ankleStatusTx, dateOrToday, isoTs, parseInput, type Ankl
 import {
   EQUIPMENT_TYPES, EXERCISE_COLS, alternativesIn, createExerciseTx, getExerciseTx, loadLibraryTx, normalizeText, resolveIn, type Exercise,
 } from "./library";
+import { inDeficitTx } from "./nutrition";
 import { prescriptionsForTx } from "./plan";
 
 /* ───────────────────────── Tipos ───────────────────────── */
@@ -330,6 +331,7 @@ async function buildViewTx(tx: Tx, w: Workout, only?: string[]): Promise<Workout
   const [mc] = w.microcycleId ? await tx.query<{ isDeload: boolean }>('select is_deload as "isDeload" from fit.microcycles where id = $1', [w.microcycleId]) : [];
   const deload = mc?.isDeload ?? false;
   const ankle = await ankleStatusTx(tx, w.date);
+  const inDeficit = await inDeficitTx(tx, w.date);
   const history = await historyTx(tx, ids, { upTo: w.date, excludeWorkoutId: w.id });
   const best = await bestE1rmTx(tx, ids);
   const ankleHit = ankle.rule.restricted && entries.some((e) => e.ankleLoad === "alta");
@@ -340,7 +342,9 @@ async function buildViewTx(tx: Tx, w: Workout, only?: string[]): Promise<Workout
     const working = mine.filter(isWorking);
     const past = history.get(e.id) ?? [];
     const spec = rxOf(e);
-    let suggestion: SuggestionView | null = spec ? { ...suggestNext(past, spec.rx, { readiness, deload }), defaultRx: spec.defaultRx } : null;
+    const holdProgression = e.ankleLoad === "alta" ? ankle.rule.holdProgression : null;
+    let suggestion: SuggestionView | null = spec
+      ? { ...suggestNext(past, spec.rx, { readiness, deload, inDeficit, holdProgression }), defaultRx: spec.defaultRx } : null;
 
     // Tope de carga: el del plan y, si el tobillo restringe y el ejercicio lo carga, el 75 % de la regla.
     const flagged = ankle.rule.restricted && e.ankleLoad === "alta";
