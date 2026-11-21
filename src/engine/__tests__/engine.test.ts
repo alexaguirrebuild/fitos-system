@@ -249,7 +249,7 @@ describe("nutrición", () => {
     expect(p.capped).toBe(false);
     expect(Math.abs(p.weeklyKcal - 7 * (3000 - deficit))).toBeLessThan(6);
     expect(p.on.kcal - p.off.kcal).toBeCloseTo(0.12 * p.avgKcal, -1);
-    expect(p.on.proteinG).toBe(152);
+    expect(p.on.proteinG).toBe(182);
     expect(p.off.proteinG).toBe(p.on.proteinG);
     expect(p.on.fatG).toBe(74);
     expect(p.on.carbG).toBeGreaterThan(p.off.carbG);
@@ -266,7 +266,7 @@ describe("nutrición", () => {
     expect(E.maxRateByBodyFat(12)).toBe(0.6);
   });
   it("ritmo objetivo: más rápido lejos del objetivo", () => {
-    expect(E.targetRatePct(92, 84)).toBe(0.8);
+    expect(E.targetRatePct(92, 84)).toBe(0.7);
     expect(E.targetRatePct(87, 84)).toBe(0.5);
     expect(E.targetRatePct(84, 84)).toBe(0);
   });

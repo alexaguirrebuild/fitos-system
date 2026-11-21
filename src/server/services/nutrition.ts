@@ -7,8 +7,8 @@ import { z } from "zod";
 import { withUser, type Db, type Tx } from "@/db/client";
 import { stepsGoal } from "@/engine/cardio";
 import {
-  adaptiveTdee, bodyComposition, caffeineCutoff, caffeineMaxMg, maxRateByBodyFat, mifflin, planTargets, proteinPerEuro, scaleMacros,
-  targetRatePct, weeklyDecision, weeklyRatePct, weightTrend, type Sex, type WeeklyAction,
+  adaptiveTdee, bodyComposition, caffeineCutoff, caffeineMaxMg, DEFAULT_FLOOR_KCAL_PER_KG, maxRateByBodyFat, mifflin, planTargets, proteinPerEuro,
+  ratePctFromDeficit, scaleMacros, targetRatePct, weeklyDecision, weeklyRatePct, weightTrend, type DeficitLimit, type DietMode, type Sex, type WeeklyAction,
 } from "@/engine/nutrition";
 import { notFound } from "@/server/errors";
 import type { FetchLike } from "@/server/off";
@@ -137,6 +137,8 @@ export async function getTargets(userId: string, input: GetTargetsInput = {}, db
 export const RecalcTargetsInput = z.object({
   date: IsoDate.optional().describe("Día para el que se calculan los objetivos (AAAA-MM-DD). Por defecto, hoy."),
   force: z.boolean().optional().describe("Guarda una fila nueva aunque el cambio sea pequeño o haya objetivos manuales."),
+  mode: z.enum(["definicion", "recomposicion"]).optional()
+    .describe("definicion (por defecto): manda el ritmo en % del peso. recomposicion: el déficit medio no pasa de 500 kcal para no perder la ganancia de magra."),
 });
 export type RecalcTargetsInput = z.input<typeof RecalcTargetsInput>;
 
@@ -151,6 +153,16 @@ export type RecalcTargetsResult =
       trainDaysPerWeek: number;
       weightKg: number;
       bodyFat: { pct: number | null; method: string; marginPts: number | null };
+      mode: DietMode;
+      /** Ritmo pedido y ritmo real tras tope y suelo, en % del peso por semana. */
+      requestedRatePct: number;
+      effectiveRatePct: number;
+      limitedBy: DeficitLimit;
+      /** Suelo por día (también el Off), en kcal. */
+      floorKcal: number;
+      proteinPerLeanKg: number;
+      mealsPerDay: number;
+      proteinPerMealG: number;
       expectedKgPerWeek: number;
       intraCarbG: [number, number] | null;
       calibration: { loggedDays: number; weighIns: number; needDays: number; needWeighIns: number };
@@ -200,15 +212,17 @@ export async function recalcTargets(userId: string, input: RecalcTargetsInput = 
     explain.push(`Peso de tendencia: ${es(kg)} kg (${weights.length} ${weights.length === 1 ? "pesada" : "pesadas"} en 60 días, la última el ${end.date}).`);
     explain.push(`Altura ${es(heightCm)} cm${a.height_confirmed ? "" : " (sin confirmar)"}, ${age} años, sexo ${a.sex}.`);
 
-    const m = (await tx.query<{ waist_cm: number | null; neck_cm: number | null; bf_pct: number | null }>(
+    const m = (await tx.query<{ waist_cm: number | null; neck_cm: number | null; bf_pct: number | null; bf_method: string | null }>(
       `select
          (select waist_cm from fit.body_metrics where waist_cm is not null and date <= $1::date order by date desc limit 1) as waist_cm,
          (select neck_cm from fit.body_metrics where neck_cm is not null and date <= $1::date order by date desc limit 1) as neck_cm,
          (select bf_pct from fit.body_metrics where bf_pct is not null and date <= $1::date and date >= $1::date - 60
-             and coalesce(bf_method, '') not in ('navy', 'rfm', 'sin_dato') order by date desc limit 1) as bf_pct`,
+             and coalesce(bf_method, '') not in ('navy', 'rfm', 'sin_dato') order by date desc limit 1) as bf_pct,
+         (select bf_method from fit.body_metrics where bf_pct is not null and date <= $1::date and date >= $1::date - 60
+             and coalesce(bf_method, '') not in ('navy', 'rfm', 'sin_dato') order by date desc limit 1) as bf_method`,
       [date],
     ))[0];
-    const comp = bodyComposition({ kg, heightCm, waistCm: m.waist_cm, neckCm: m.neck_cm, sex: a.sex, measuredBfPct: m.bf_pct });
+    const comp = bodyComposition({ kg, heightCm, waistCm: m.waist_cm, neckCm: m.neck_cm, sex: a.sex, measuredBfPct: m.bf_pct, measuredMethod: m.bf_method });
     let leanKg = comp.leanKg;
     if (leanKg == null) {
       leanKg = r1(kg * 0.8);
@@ -302,14 +316,20 @@ export async function recalcTargets(userId: string, input: RecalcTargetsInput = 
         : "Ritmo objetivo: 0 % (mantenimiento).");
     }
 
-    const plan = planTargets({ kg, leanKg, tdee, ratePctWeek: rate, trainDaysPerWeek: trainDays });
+    const mode: DietMode = i.mode ?? "definicion";
+    const plan = planTargets({ kg, leanKg, tdee, ratePctWeek: rate, trainDaysPerWeek: trainDays, mode });
     warnings.push(...plan.warnings);
     const macros = (d: typeof plan.on): Macros => ({ kcal: d.kcal, proteinG: d.proteinG, carbsG: d.carbG, fatG: d.fatG });
     const on = macros(plan.on);
     const off = macros(plan.off);
     const line = (t: Macros) => `${t.kcal} kcal · proteína ${t.proteinG} g · hidratos ${t.carbsG} g · grasa ${t.fatG} g`;
-    if (plan.deficitKcal > 0) explain.push(`Déficit: ${plan.deficitKcal} kcal al día (${plan.deficitPct} % del gasto) → unos ${es(plan.expectedKgPerWeek)} kg por semana.`);
-    explain.push(`Proteína: 2,3 g por kg de masa magra. Grasa: 0,8 g por kg de peso. El resto, hidratos.`);
+    if (plan.deficitKcal > 0) {
+      explain.push(`Déficit: ${plan.deficitKcal} kcal al día (${plan.deficitPct} % del gasto) → unos ${es(plan.expectedKgPerWeek)} kg por semana.`);
+      const by = { tasa: "", recomposicion: " (techo de recomposición: 500 kcal)", tope: " (tope del 25 % del gasto)", suelo: ` (suelo de ${plan.floorKcal} kcal por día)` }[plan.limitedBy];
+      explain.push(`Ritmo real: ${es(plan.effectiveRatePct)} % del peso por semana${plan.effectiveRatePct < rate ? `, no el ${es(rate)} % pedido${by}` : ""}. La revisión semanal juzga contra este.`);
+    }
+    explain.push(`Modo ${mode === "recomposicion" ? "recomposición (déficit medio ≤ 500 kcal)" : "definición (manda el ritmo)"}. Ningún día baja de ${plan.floorKcal} kcal (24 por kg), tampoco el Off.`);
+    explain.push(`Proteína: ${es(plan.proteinPerLeanKg)} g por kg de masa magra (2,3 sin déficit, sube con él hasta 3,1) → ${plan.on.proteinG} g, unos ${plan.proteinPerMealG} g en cada una de ${plan.mealsPerDay} comidas. Grasa: 0,8 g por kg de peso. El resto, hidratos.`);
     explain.push(`Día On (${trainDays} por semana): ${line(on)}.`);
     explain.push(`Día Off (${7 - trainDays} por semana): ${line(off)}.`);
     explain.push(`Total semanal: ${plan.weeklyKcal} kcal (media ${plan.avgKcal} al día).`);
@@ -317,9 +337,10 @@ export async function recalcTargets(userId: string, input: RecalcTargetsInput = 
     const prevRow = (await tx.query<TargetRow>("select * from fit.nutrition_targets where valid_from <= $1::date order by valid_from desc limit 1", [date]))[0];
     const changed = !prevRow || prevRow.phase !== phase
       || Math.abs(prevRow.avg_kcal - plan.avgKcal) > 50 || Math.abs(prevRow.on_kcal - on.kcal) > 50 || Math.abs(prevRow.off_kcal - off.kcal) > 50;
-    const reason = phase === "calibracion" ? "Calibración: Mifflin × 1,55 a mantenimiento." : `Gasto medido (${tdee} kcal), ritmo ${es(rate)} %/semana.`;
+    const reason = phase === "calibracion" ? "Calibración: Mifflin × 1,55 a mantenimiento."
+      : `Gasto medido (${tdee} kcal), modo ${mode}, ritmo pedido ${es(rate)} %/semana, real ${es(plan.effectiveRatePct)} %.`;
     let target: NutritionTarget = {
-      id: null, validFrom: date, phase, tdee, tdeeMethod, leanKg, ratePctWeek: rate, avgKcal: plan.avgKcal, onOffSpread: 0.12, on, off, reason,
+      id: null, validFrom: date, phase, tdee, tdeeMethod, leanKg, ratePctWeek: rate, avgKcal: plan.avgKcal, onOffSpread: plan.onOffSpreadApplied, on, off, reason,
     };
     let saved = false;
     if (prevRow?.tdee_method === "manual" && !i.force) {
@@ -328,14 +349,15 @@ export async function recalcTargets(userId: string, input: RecalcTargetsInput = 
       const ins = await tx.query<TargetRow>(
         `insert into fit.nutrition_targets as t (user_id, valid_from, phase, tdee, tdee_method, lean_kg, rate_pct_week, avg_kcal, on_off_spread,
            on_kcal, on_protein_g, on_carbs_g, on_fat_g, off_kcal, off_protein_g, off_carbs_g, off_fat_g, protein_per_lean_kg, fat_per_kg, reason)
-         values ($1::uuid, $2::date, $3, $4, $5, $6, $7, $8, 0.12, $9, $10, $11, $12, $13, $14, $15, $16, 2.3, 0.8, $17)
+         values ($1::uuid, $2::date, $3, $4, $5, $6, $7, $8, $18, $9, $10, $11, $12, $13, $14, $15, $16, $19, 0.8, $17)
          on conflict (user_id, valid_from) do update set phase = excluded.phase, tdee = excluded.tdee, tdee_method = excluded.tdee_method,
            lean_kg = excluded.lean_kg, rate_pct_week = excluded.rate_pct_week, avg_kcal = excluded.avg_kcal, on_off_spread = excluded.on_off_spread,
            on_kcal = excluded.on_kcal, on_protein_g = excluded.on_protein_g, on_carbs_g = excluded.on_carbs_g, on_fat_g = excluded.on_fat_g,
            off_kcal = excluded.off_kcal, off_protein_g = excluded.off_protein_g, off_carbs_g = excluded.off_carbs_g, off_fat_g = excluded.off_fat_g,
            protein_per_lean_kg = excluded.protein_per_lean_kg, fat_per_kg = excluded.fat_per_kg, reason = excluded.reason
          returning *`,
-        [userId, date, phase, tdee, tdeeMethod, leanKg, rate, plan.avgKcal, on.kcal, on.proteinG, on.carbsG, on.fatG, off.kcal, off.proteinG, off.carbsG, off.fatG, reason],
+        [userId, date, phase, tdee, tdeeMethod, leanKg, rate, plan.avgKcal, on.kcal, on.proteinG, on.carbsG, on.fatG, off.kcal, off.proteinG, off.carbsG, off.fatG, reason,
+          plan.onOffSpreadApplied, plan.proteinPerLeanKg],
       );
       target = toTarget(ins[0]);
       saved = true;
@@ -346,6 +368,8 @@ export async function recalcTargets(userId: string, input: RecalcTargetsInput = 
     return {
       ok: true, saved, date, target, weeklyKcal: plan.weeklyKcal, trainDaysPerWeek: trainDays, weightKg: kg,
       bodyFat: { pct: comp.bfPct, method: comp.method, marginPts: comp.marginPts },
+      mode, requestedRatePct: rate, effectiveRatePct: plan.effectiveRatePct, limitedBy: plan.limitedBy, floorKcal: plan.floorKcal,
+      proteinPerLeanKg: plan.proteinPerLeanKg, mealsPerDay: plan.mealsPerDay, proteinPerMealG: plan.proteinPerMealG,
       expectedKgPerWeek: plan.expectedKgPerWeek, intraCarbG: plan.on.intraCarbG ?? null, calibration, explain, warnings,
     };
   }, db);
@@ -1114,6 +1138,12 @@ export type WeeklyNutritionReview = {
     weighIns: number;
     ratePct: number | null;
     targetPct: number;
+    /** Ritmo real que da el plan vigente (tras tope y suelo). Es contra el que se juzga la semana. */
+    effectivePct: number | null;
+    /** El plan ya está en el suelo de kcal por día. */
+    atFloor: boolean;
+    /** Semanas seguidas en déficit (desde la última semana de mantenimiento). A partir de 8, se propone una. */
+    weeksInDeficit: number | null;
     waistCm: number | null;
     waistDeltaCm: number | null;
     adherencePct: number | null;
@@ -1209,8 +1239,24 @@ export async function weeklyNutritionReview(userId: string, input: WeeklyNutriti
 
     const lastKg = weights.length ? weights[weights.length - 1].kg : null;
     const targetPct = target ? target.ratePctWeek : lastKg != null && a.goal_weight_kg != null ? targetRatePct(lastKg, a.goal_weight_kg) : 0;
+    // Ritmo real que da el plan vigente (gasto − media) y si ya está en el suelo: así «ritmo lento» no pide recortar lo que el suelo impide.
+    const deficitKcal = target ? target.tdee - target.avgKcal : 0;
+    const effectivePct = target && lastKg != null && deficitKcal > 0 ? ratePctFromDeficit(deficitKcal, lastKg) : null;
+    const floorKcal = lastKg != null ? DEFAULT_FLOOR_KCAL_PER_KG * lastKg : null;
+    const atFloor = !!target && floorKcal != null && target.phase === "deficit" && Math.min(target.avgKcal, target.off.kcal) <= floorKcal + 10;
+    // Semanas seguidas en déficit: desde el inicio de la racha de objetivos en déficit, o desde la última semana de mantenimiento propuesta.
+    let weeksInDeficit: number | null = null;
+    if (target?.phase === "deficit") {
+      let runStart = target.validFrom;
+      for (const t of targets) { if (t.phase !== "deficit") break; runStart = t.validFrom; }
+      const [lastBreak] = await tx.query<{ ws: string | null }>(
+        "select max(week_start) as ws from fit.weekly_reviews where action = 'semana_mantenimiento' and week_start < $1::date", [ws]);
+      const afterBreak = lastBreak?.ws ? addDays(lastBreak.ws, 7) : null;
+      const start = afterBreak && afterBreak > runStart ? afterBreak : runStart;
+      weeksInDeficit = Math.max(0, Math.floor((diffDays(start, we) + 1) / 7));
+    }
     const engineDecision = weeklyDecision({
-      ratePct, targetPct, performance, waistDeltaCm, readinessAvg: avgs.readiness == null ? null : r1(avgs.readiness),
+      ratePct, targetPct, effectivePct, atFloor, weeksInDeficit, performance, waistDeltaCm, readinessAvg: avgs.readiness == null ? null : r1(avgs.readiness),
       adherencePct, stepsAvg: avgs.steps == null ? null : r0(avgs.steps), stepsGoal: a.steps_goal,
     });
     // En calibración no se tocan las calorías: se está midiendo el gasto.
@@ -1227,7 +1273,7 @@ export async function weeklyNutritionReview(userId: string, input: WeeklyNutriti
 
     const plan = await planInfoTx(tx, today);
     const data: WeeklyNutritionReview["data"] = {
-      phase: target?.phase ?? null, weightAvgKg, weighIns: inWeek.length, ratePct, targetPct, waistCm: waist.now, waistDeltaCm, adherencePct, adherentDays, daysCounted, freeDays, avgKcal,
+      phase: target?.phase ?? null, weightAvgKg, weighIns: inWeek.length, ratePct, targetPct, effectivePct, atFloor, weeksInDeficit, waistCm: waist.now, waistDeltaCm, adherencePct, adherentDays, daysCounted, freeDays, avgKcal,
       stepsAvg: avgs.steps == null ? null : r0(avgs.steps), stepsGoal: a.steps_goal, readinessAvg: avgs.readiness == null ? null : r1(avgs.readiness),
       performance, performancePct, exercisesCompared: changes.length, sessionsDone: avgs.sessions, sessionsPlanned: plannedOnDays(plan), engineDecision,
     };

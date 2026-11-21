@@ -140,7 +140,7 @@ describe("medidas corporales", () => {
     const m = await logBodyMetrics(a, {
       date: "2026-11-23", weightKg: 90, waistCm: 95, skeletalMuscleKg: 40.2, bfPct: 18.5, bfMethod: "inbody", forearmCm: 30, shoulderWidthCm: 120,
     }, db);
-    expect(m).toMatchObject({ bfPct: 18.5, bfMethod: "inbody", skeletalMuscleKg: 40.2, forearmCm: 30, shoulderWidthCm: 120, bfMarginPts: 2 });
+    expect(m).toMatchObject({ bfPct: 18.5, bfMethod: "inbody", skeletalMuscleKg: 40.2, forearmCm: 30, shoulderWidthCm: 120, bfMarginPts: 4 }); // InBody es bioimpedancia: ±4
     expect(m.leanKg).toBe(73.4); // 90 × (1 − 0,185) = 73,35, redondeado a un decimal
     // Un registro posterior del mismo día con cuello no pisa el valor medido con Navy.
     const later = await logBodyMetrics(a, { date: "2026-11-23", neckCm: 40 }, db);

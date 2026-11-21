@@ -10,7 +10,7 @@ import { es } from "zod/locales";
 import { withUser, type Db, type Tx } from "@/db/client";
 import { invalid, notFound } from "@/server/errors";
 import { DEFAULT_TZ, addDays, todayIn } from "@/server/time";
-import { ankleRule, bodyComposition, trainingLevel, type AnkleRule, type Sex } from "@/engine";
+import { ankleRule, BF_MARGIN_PTS, bodyComposition, measuredBfMethod, trainingLevel, type AnkleRule, type Sex } from "@/engine";
 
 /* ───────────────────────── Ayudantes comunes ───────────────────────── */
 
@@ -232,7 +232,7 @@ export async function upsertBodyMetricsTx(tx: Tx, input: z.output<typeof BodyMet
       kg = last[0]?.kg ?? null;
     }
     leanKg = kg != null ? Math.round(kg * (1 - row.bfPct! / 100) * 10) / 10 : null;
-    bfMarginPts = 2;
+    bfMarginPts = BF_MARGIN_PTS[measuredBfMethod(row.bfMethod)]; // bioimpedancia ±4, el resto ±2
     if (a.heightCm && row.waistCm) waistToHeight = Math.round((row.waistCm / a.heightCm) * 100) / 100;
   } else if (!a.heightCm || !a.heightConfirmed) {
     warnings.push("Altura sin confirmar: no calculo el % graso hasta que la confirmes.");

@@ -99,16 +99,30 @@ export type DeloadSignals = {
   acwrRatio: number | null;
   /** Semana de exámenes u otro estresor externo alto. */
   externalStress?: boolean;
+  /** Noches de los últimos 7 días con menos de 7 h de sueño. */
+  shortSleepNights?: number | null;
+  /** Peor dolor tendinoso o articular reciente, 0-10. */
+  tendonPain?: number | null;
 };
 
-/** Hacen falta dos señales. Así una mala noche no dispara una descarga. */
+/** Noches cortas (< 7 h) en 7 días que cuentan como señal: la restricción seguida baja la fuerza en multiarticulares (Knowles 2018, PMID 29422383). */
+export const SHORT_SLEEP_NIGHTS = 3;
+/** Dolor tendinoso por encima del que cuenta como señal (Pain-Monitoring Model: ≤ 5/10; PMID 33632313). */
+export const TENDON_PAIN_SIGNAL = 5;
+
+/**
+ * Hacen falta dos señales. Así una mala noche no dispara una descarga.
+ * Es más estricto que el OR del reglamento (CAR-05) a propósito: se mantiene.
+ */
 export function deloadDecision(s: DeloadSignals) {
   const signals: string[] = [];
   if (s.e1rmDropping) signals.push("La fuerza cae dos sesiones seguidas");
   if (s.readiness7dAvg != null && s.readiness7dAvg < 50) signals.push(`Readiness medio de 7 días en ${Math.round(s.readiness7dAvg)}`);
   if (s.maxWeeklyStress != null && s.maxWeeklyStress > 26) signals.push("Estrés semanal por encima de 26 en algún grupo");
-  if (s.acwrRatio != null && s.acwrRatio > 1.5) signals.push(`Pico de carga (ACWR ${s.acwrRatio})`);
+  if (s.acwrRatio != null && s.acwrRatio > 1.5) signals.push(`${s.acwrRatio > 2 ? "Pico de carga extremo" : "Pico de carga"} (ACWR ${s.acwrRatio})`);
   if (s.externalStress) signals.push("Estresor externo alto (exámenes)");
+  if (s.shortSleepNights != null && s.shortSleepNights >= SHORT_SLEEP_NIGHTS) signals.push(`${s.shortSleepNights} de las últimas 7 noches por debajo de 7 h`);
+  if (s.tendonPain != null && s.tendonPain > TENDON_PAIN_SIGNAL) signals.push(`Dolor tendinoso de ${s.tendonPain}/10`);
   const deload = signals.length >= 2;
   return {
     deload,

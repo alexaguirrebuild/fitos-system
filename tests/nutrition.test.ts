@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { asSystem, openMemoryDb, withUser, type Db } from "@/db/client";
-import { adaptiveTdee, caffeineMaxMg, mifflin, weightTrend } from "@/engine/nutrition";
+import { adaptiveTdee, caffeineMaxMg, mifflin, ratePctFromDeficit, weightTrend } from "@/engine/nutrition";
 import {
   buildShoppingList, deleteFoodLog, getDayType, getNutritionDay, getTargets, listMealTemplates, logCaffeine, logFood, logMealTemplate, recalcTargets,
   repeatMeal, saveMealTemplate, setDayType, updateFoodLog, weeklyNutritionReview,
@@ -106,12 +106,41 @@ describe("recalcTargets", () => {
     const trend = weightTrend(Array.from({ length: 15 }, (_, k) => ({ date: addDays(D, k - 14), kg: Math.round((92 - 0.1 * k) * 10) / 10 })));
     const expected = adaptiveTdee({ intakeAvgKcal: 2400, trendStartKg: trend[0].trend, trendEndKg: trend[14].trend, days: 14 });
     expect(expected).toBeGreaterThan(2400); // bajando de peso, gasta más de lo que come
-    expect(r.target).toMatchObject({ phase: "deficit", tdeeMethod: "medido", tdee: expected, ratePctWeek: 0.8 });
+    expect(r.target).toMatchObject({ phase: "deficit", tdeeMethod: "medido", tdee: expected, ratePctWeek: 0.7 });
     expect(r.target.avgKcal).toBeLessThan(r.target.tdee);
     expect(r.explain.join(" ")).toMatch(/TDEE medido/);
     expect(r.warnings.join(" ")).not.toMatch(/Altura sin confirmar/);
     expect(r.calibration).toMatchObject({ loggedDays: 14, weighIns: 14 });
     expect(Math.abs(r.weeklyKcal - r.target.avgKcal * 7)).toBeLessThanOrEqual(7);
+  });
+
+  it("devuelve la tasa real, la proteína escalada con el déficit y su reparto por comida", async () => {
+    const r = await recalcTargets(med, { date: D }, db);
+    if (!r.ok) throw new Error("debería calcular");
+    expect(r).toMatchObject({ mode: "definicion", requestedRatePct: 0.7, mealsPerDay: 4, floorKcal: Math.round(24 * r.weightKg) });
+    expect(r.effectiveRatePct).toBeGreaterThan(0);
+    expect(r.effectiveRatePct).toBeLessThanOrEqual(0.7);
+    expect(r.proteinPerLeanKg).toBeGreaterThan(2.3);
+    expect(r.target.on.proteinG).toBe(Math.round(r.target.leanKg! * r.proteinPerLeanKg));
+    expect(r.proteinPerMealG).toBe(Math.round(r.target.on.proteinG / 4));
+    expect(r.target.off.kcal).toBeGreaterThanOrEqual(r.floorKcal);
+    const text = r.explain.join(" ");
+    expect(text).toMatch(/Ritmo real/);
+    expect(text).toMatch(new RegExp(`${String(r.proteinPerLeanKg).replace(".", ",")} g por kg de masa magra`));
+    expect(text).toMatch(/tampoco el Off/);
+    // Lo guardado lleva el k usado, no el 2,3 fijo.
+    const k = await withUser(med, (tx) => tx.query<{ k: number }>("select protein_per_lean_kg as k from fit.nutrition_targets where valid_from = $1::date", [D]), db);
+    expect(Number(k[0].k)).toBe(r.proteinPerLeanKg);
+  });
+
+  it("modo recomposición: el déficit medio no pasa de 500 kcal", async () => {
+    const r = await recalcTargets(med, { date: D, mode: "recomposicion", force: true }, db);
+    if (!r.ok) throw new Error("debería calcular");
+    expect(r.mode).toBe("recomposicion");
+    expect(r.target.tdee - r.target.avgKcal).toBeLessThanOrEqual(500);
+    expect(r.target.reason).toMatch(/recomposicion/);
+    // Vuelta al modo por defecto para el resto de pruebas.
+    expect(await recalcTargets(med, { date: D, force: true }, db)).toMatchObject({ ok: true, mode: "definicion" });
   });
 });
 
@@ -205,7 +234,7 @@ describe("getTargets", () => {
     const text = r!.explain.join(" ");
     expect(text).toMatch(/medido/);
     expect(text).toMatch(/Déficit/);
-    expect(text).toMatch(/2,3 g por kg de masa magra/);
+    expect(text).toMatch(/g por kg de masa magra/);
     expect(text).toMatch(/0,8 g por kg de peso/);
     expect(text).toMatch(/Día On/);
     expect(await count(med, "nutrition_targets")).toBe(before);
@@ -403,7 +432,7 @@ describe("revisión semanal", () => {
       "insert into fit.daily_activity (date, steps) values ('2026-10-19', 6000), ('2026-10-20', 8000)"), db);
     const r = await weeklyNutritionReview(med, { weekStart: "2026-10-19" }, db);
     expect(r.data.phase).toBe("deficit");
-    expect(r.data.targetPct).toBe(0.8);
+    expect(r.data.targetPct).toBe(0.7);
     expect(r.data.ratePct).toBeLessThan(0);
     expect(r.data.stepsAvg).toBe(7000);
     expect(r.data.weighIns).toBe(2);
@@ -414,5 +443,34 @@ describe("revisión semanal", () => {
     expect(r.why.length).toBeGreaterThan(10);
     // Proponer no es aplicar: los objetivos siguen igual.
     expect(await count(med, "nutrition_targets")).toBe(1);
+    // La semana se juzga contra el ritmo real del plan vigente (gasto − media), no solo contra el pedido.
+    const t = (await getTargets(med, { date: D }, db))!.target;
+    expect(r.data.effectivePct).toBe(ratePctFromDeficit(t.tdee - t.avgKcal, 90.6));
+    expect(r.data).toMatchObject({ atFloor: false, weeksInDeficit: 0 });
+  });
+
+  it("tras 8 semanas seguidas en déficit propone una semana de mantenimiento, y el contador vuelve a empezar", async () => {
+    const t = (await getTargets(med, { date: D }, db))!.target;
+    // Un objetivo en déficit desde el 3 de agosto: del 3-ago al 4-oct van 9 semanas seguidas (fechas pasadas, para que cuente la adherencia).
+    await withUser(med, (tx) => tx.query(
+      `insert into fit.nutrition_targets (valid_from, phase, tdee, tdee_method, avg_kcal, rate_pct_week, on_kcal, on_protein_g, on_carbs_g, on_fat_g, off_kcal, off_protein_g, off_carbs_g, off_fat_g)
+       values ('2026-08-03', 'deficit', $1, 'medido', $2, 0.7, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [t.tdee, t.avgKcal, t.on.kcal, t.on.proteinG, t.on.carbsG, t.on.fatG, t.off.kcal, t.off.proteinG, t.off.carbsG, t.off.fatG]), db);
+    await withUser(med, async (tx) => {
+      for (let k = 0; k < 7; k++)
+        await tx.query("insert into fit.food_logs (date, meal, description, kcal, protein_g, carbs_g, fat_g) values ($1::date, 'comida', 'día clavado', $2, $3, $4, $5)",
+          [addDays("2026-09-28", k), t.off.kcal, t.off.proteinG, t.off.carbsG, t.off.fatG]);
+    }, db);
+    const r = await weeklyNutritionReview(med, { weekStart: "2026-09-28" }, db);
+    expect(r.data).toMatchObject({ phase: "deficit", weeksInDeficit: 9 });
+    expect(r.data.adherencePct!).toBeGreaterThanOrEqual(80);
+    expect(r.action).toBe("semana_mantenimiento");
+    expect(r.why).toMatch(/9 semanas seguidas/);
+    expect(r.proposal).not.toBeNull();
+    // La semana siguiente cuenta desde la pausa propuesta.
+    const next = await weeklyNutritionReview(med, { weekStart: "2026-10-05" }, db);
+    expect(next.data.weeksInDeficit).toBe(1);
+    expect(next.action).not.toBe("semana_mantenimiento");
+    await withUser(med, (tx) => tx.query("delete from fit.nutrition_targets where valid_from = '2026-08-03'"), db);
   });
 });
