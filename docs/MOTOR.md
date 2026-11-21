@@ -10,7 +10,7 @@ Cada regla lleva su grado: **evidencia** (ensayo o metaanálisis comprobado), **
 |---|---|---|---|
 | `strength` | `estimate1RM`, `rmFactor` | e1RM con reps + RIR. Epley ≤ 10, media Epley-Brzycki 11-15, nada por encima. Confianza según RIR | fórmula |
 | | `pctFromRpe`, `RPE_TABLE` | Tabla RPE × reps → % 1RM (hoja de prescripción) | heurística (datos de usuarios RTS) |
-| | `suggestNext` | Doble progresión con RIR: sube carga al completar el techo; +1 rep dentro del rango; repite o baja 5 % por debajo del suelo; readiness y descarga mandan | evidencia (autorregulación frente a carga fija ES 0,64, PMID 33776802); reglas concretas heurística |
+| | `suggestNext` | Doble progresión con RIR: sube carga al completar el techo; +1 rep dentro del rango; repite o baja 5 % por debajo del suelo; readiness y descarga mandan. **En déficit, los compuestos van con RIR +1** (no se suma al +1 del readiness bajo). Con `holdProgression` (tobillo), repite en vez de progresar | evidencia (autorregulación frente a carga fija ES 0,64, PMID 33776802); RIR +1 en déficit: derivada (RIR-02; fuerza insensible al RIR, PMID 38970765; fallo frente a no fallo ES 0,19, PMID 36334240) |
 | | `warmupLadder`, `platesPerSide` | Aproximaciones y discos por lado | heurística |
 | `load` | `acwr`, `ewma`, `dailyLoads` | Carga sRPE × min por día de calendario, EWMA 7/28 con los días sin sesión a 0. Sin ratio hasta 21 días | fórmula (PMID 28003238). El ratio no es causal: es un semáforo (PMID 32502973) |
 | | `acwrZone` | 0,8-1,3 óptimo · ≤ 1,5 precaución · ≤ 2,0 pico · **> 2,0 `pico_extremo`** | evidencia: menor riesgo en 0,8-1,3 (PMID 32158285); > 2,0 RR 6,5-21 (PMID 28003238) |
@@ -23,9 +23,10 @@ Cada regla lleva su grado: **evidencia** (ensayo o metaanálisis comprobado), **
 | `recovery` | `readiness` | Fórmula de la app antigua (histórico comparable) | heurística |
 | | `scorePoms` | POMS de 52 ítems con el mapa de escalas corregido y TMD | fórmula |
 | | `deloadDecision` | Descarga con **dos señales**; exámenes solos = mantenimiento. Señales: e1RM cae dos sesiones, readiness 7 d < 50, estrés semanal > 26, ACWR > 1,5, exámenes, **sueño < 7 h en ≥ 3 de 7 noches**, **dolor tendinoso > 5/10** | heurística (dos señales: se mantiene frente al OR del reglamento, CAR-05). Sueño: la restricción seguida baja la fuerza en multiarticulares (PMID 29422383). Tendón: umbral del Pain-Monitoring Model (PMID 33632313) |
-| | `ankleRule` | Tobillo > 3: sin impacto, Z2 en bici o elíptica, tope 75 % | regla propia (script de julio). **Se mantiene > 3**, más prudente que el ≤ 5 del modelo (PMID 33632313, 17307888) |
+| | `ankleRule` | Tobillo > 3: sin impacto, Z2 en bici o elíptica, tope 75 %. **Si a la mañana siguiente de pierna duele más que antes de entrenar, `holdProgression`: la próxima pierna repite sin progresar** | regla propia (script de julio). **Se mantiene > 3**, más prudente que el ≤ 5 del modelo (PMID 33632313, 17307888) |
 | `nutrition` | `mifflin`, `adaptiveTdee` | Gasto estimado y, con 14 días de datos, medido | fórmula (PMID 2305711) |
 | | `bodyComposition` | % graso medido, Navy o RFM con su margen. **La bioimpedancia (InBody, Tanita…) entra como `bia`, ±4 puntos**; DXA u otro medido, ±2 | evidencia: BIA ±3-5 puntos frente a DXA |
+| | `waistForWhtr` | Cintura máxima para un índice cintura/altura ≤ 0,50: con 174 cm, **87 cm** (88 da 0,506). `recalcTargets` avisa si la cintura objetivo de la ficha queda por encima | evidencia: frontera 0,50, AUROC 0,704 frente a 0,671 del IMC (PMID 20819243) |
 | | `targetRatePct` | Ritmo pedido: **0,7 %**/semana a más de 4 kg del objetivo; 0,5 % después | evidencia: a 0,7 % se ganó magra (+2,1 %), a 1,4 % se perdió (PMID 21558571); modelo de Forbes/Hall (PMID 17367567) |
 | | `planTargets` | Déficit por ritmo, techo de recomposición, tope del 25 % y suelo por día; devuelve la **tasa real**; proteína escalada; On/Off con el total semanal fijo. Ver abajo | evidencia (ritmo, proteína, reparto); suelo heurística del cuaderno; On/Off ±12 % sin ventaja demostrada |
 | | `weeklyDecision` | Cruza peso, rendimiento, cintura, recuperación y adherencia. **Juzga contra la tasa real**, no pide bajar kcal en el suelo y propone **semana de mantenimiento tras ≥ 8 semanas en déficit** | heurística; pausa de dieta: PMID 28925405 (a favor), PMID 37181269 (en entrenados, solo adherencia) |
@@ -58,7 +59,8 @@ Caso real (21-nov-2026: 90,07 kg, 66,83 kg magros, TDEE de referencia 2.681): se
 | Suelo | 24 kcal por kg, por día | `DEFAULT_FLOOR_KCAL_PER_KG`, `floorKcalPerKg` |
 | Diferencia On − Off | 12 % de la media (menos si el Off toca el suelo) | `onOffSpread` |
 | Pausa de dieta | 8 semanas seguidas en déficit | `DIET_BREAK_WEEKS` |
-| Señales de descarga nuevas | 3 noches < 7 h en 7 días; dolor tendinoso > 5/10 | `SHORT_SLEEP_NIGHTS`, `TENDON_PAIN_SIGNAL` |
+| Señales de descarga nuevas | 3 noches < 7 h en 7 días (check-in y, si no trae horas, el reloj); dolor tendinoso > 5/10 | `SHORT_SLEEP_NIGHTS`, `TENDON_PAIN_SIGNAL` |
+| RIR en déficit | +1 en compuestos | `suggestNext({ inDeficit })` |
 | Series en déficit | 12-16 por grupo y semana | `DEFICIT_WEEKLY_SETS` |
 | Subida de carga | 2,5 % compuestos, 5 % aislamientos, mínimo un salto real | `suggestNext` |
 | Tope útil por sesión | 10 series efectivas por grupo | `SESSION_CAP` |
@@ -69,8 +71,8 @@ Cambiar un parámetro es cambiar un número: ninguna pantalla lo lleva escrito.
 
 ## Pendiente del cruce (no aplicado)
 
-- `waistToHeight` redondea a 2 decimales: 88 cm / 174 cm sale 0,51. Para bajar de 0,50 hace falta **87 cm** (PMID 20819243).
-- On/Off 5+2 con los dos Off a mantenimiento (`structure: "refeed_5_2"`; PMID 33467235).
-- Criterio de la mañana siguiente en el tobillo (`painNextMorning > painBefore` → repetir sin progresar; PMID 33632313) y bloque HSR 3×/semana 12 semanas (PMID 26018970).
-- RIR +1 en compuestos durante el déficit (RIR-02), bici 10 min pre-estudio (PMID 36829357), creatina (PMID 35986981), intenciones «si-entonces» (PMID 30427874).
-- `acwr` fiable desde 28 días en vez de 21 (criterio estricto del reglamento).
+- On/Off 5+2 con los dos Off a mantenimiento (`structure: "refeed_5_2"`; PMID 33467235). Choca con el significado actual de On/Off (On = entreno): el refeed va en los días de pierna de más volumen (CIC-02). Es una decisión de Alex.
+- Bloque HSR 3×/semana durante 12 semanas para el tobillo (PMID 26018970): va en el programa, no en el motor.
+- Bici 10 min antes de estudiar (PMID 36829357), creatina (PMID 35986981) e intenciones «si-entonces» con revisión semanal (PMID 30427874): necesitan tabla o pantalla.
+- `acwr` fiable desde 28 días en vez de 21 (criterio estricto del reglamento; 21 se considera aceptable).
+- Aviso de que la cafeína no tiene beneficio significativo en tren inferior (PMID 29527137).

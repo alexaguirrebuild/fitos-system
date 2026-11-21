@@ -141,22 +141,37 @@ export type AnkleRule = {
   z2Modes: string[];
   squatCapPct: number | null;
   dropTopSet: boolean;
+  /**
+   * Pain-Monitoring Model: el dolor de la mañana siguiente debe volver al de antes de la sesión (PMID 33632313).
+   * Si no vuelve, la próxima sesión de pierna repite sin progresar. Null si no hay dato.
+   */
+  holdProgression: string | null;
   swaps: Record<string, string>;
   notes: string[];
 };
 
-/** `pain` 0-10 hoy; `painDayAfterLegs` 0-10 al día siguiente de la última sesión de pierna. */
-export function ankleRule(pain: number, painDayAfterLegs: number | null = null): AnkleRule {
+/**
+ * `pain` 0-10 hoy; `painDayAfterLegs` 0-10 al día siguiente de la última sesión de pierna; `painBeforeLegs` 0-10 justo antes de ella.
+ * El umbral de restricción (> 3) se mantiene: es más prudente que el ≤ 5 del Pain-Monitoring Model.
+ */
+export function ankleRule(pain: number, painDayAfterLegs: number | null = null, painBeforeLegs: number | null = null): AnkleRule {
   const restricted = pain > 3 || (painDayAfterLegs ?? 0) > 3;
+  const worseNextMorning = painDayAfterLegs != null && painBeforeLegs != null && painDayAfterLegs > painBeforeLegs;
   return {
     restricted,
     impactAllowed: pain <= 1 && (painDayAfterLegs ?? 0) <= 1,
     z2Modes: pain <= 1 ? ["bici", "elíptica", "cinta inclinada andando"] : ["bici", "elíptica"],
     squatCapPct: restricted ? 75 : null,
     dropTopSet: (painDayAfterLegs ?? 0) > 3,
+    holdProgression: worseNextMorning
+      ? `El tobillo dolió más a la mañana siguiente (${painDayAfterLegs}/10) que antes de la última pierna (${painBeforeLegs}/10).`
+      : null,
     swaps: restricted ? { "Búlgaras": "Prensa unilateral", "Sentadilla libre": "Sentadilla multipower", "Carrera": "Bici Z2", "HIIT con impacto": "Bici por intervalos" } : {},
-    notes: restricted
-      ? ["El tobillo manda: cero carrera, cero saltos, cero HIIT con impacto.", "Prensa con pies altos si tira.", "Movilidad de tobillo 3 × 10 por lado, rango sin dolor."]
-      : ["Sin restricción. Si duele al día siguiente de pierna, anótalo: quita el top set de la próxima."],
+    notes: [
+      ...(restricted
+        ? ["El tobillo manda: cero carrera, cero saltos, cero HIIT con impacto.", "Prensa con pies altos si tira.", "Movilidad de tobillo 3 × 10 por lado, rango sin dolor."]
+        : ["Sin restricción. Si duele al día siguiente de pierna, anótalo: quita el top set de la próxima."]),
+      ...(worseNextMorning ? ["A la mañana siguiente dolió más que antes de entrenar: la próxima pierna repite cargas, sin progresar."] : []),
+    ],
   };
 }

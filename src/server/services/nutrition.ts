@@ -44,13 +44,13 @@ const subMacros = (a: Macros, b: Macros): Macros => ({ kcal: r1(a.kcal - b.kcal)
 
 type AthleteRow = {
   id: string; sex: Sex; birth_date: string | null; height_cm: number | null; height_confirmed: boolean; timezone: string;
-  bedtime: string | null; wake_time: string | null; adhd_medication: boolean | null; goal_weight_kg: number | null;
+  bedtime: string | null; wake_time: string | null; adhd_medication: boolean | null; goal_weight_kg: number | null; goal_waist_cm: number | null;
   steps_goal: number; steps_off_extra: number; weekly_food_budget_eur: number | null; stores: string[];
 };
 
 async function athleteRow(tx: Tx): Promise<AthleteRow> {
   const r = await tx.query<AthleteRow>(
-    `select id, sex, birth_date, height_cm, height_confirmed, timezone, bedtime, wake_time, adhd_medication, goal_weight_kg,
+    `select id, sex, birth_date, height_cm, height_confirmed, timezone, bedtime, wake_time, adhd_medication, goal_weight_kg, goal_waist_cm,
             steps_goal, steps_off_extra, weekly_food_budget_eur, stores from fit.athletes limit 1`,
   );
   if (!r[0]) throw notFound("El atleta");
@@ -93,6 +93,12 @@ const toTarget = (r: TargetRow): NutritionTarget => ({
   on: { kcal: r.on_kcal, proteinG: r.on_protein_g, carbsG: r.on_carbs_g, fatG: r.on_fat_g },
   off: { kcal: r.off_kcal, proteinG: r.off_protein_g, carbsG: r.off_carbs_g, fatG: r.off_fat_g },
 });
+
+/** ¿La fase de nutrición vigente en `date` es déficit? La usan las sugerencias de entreno (RIR +1 en básicos). */
+export async function inDeficitTx(tx: Tx, date: string): Promise<boolean> {
+  const r = await tx.query<{ phase: NutritionPhase }>("select phase from fit.nutrition_targets where valid_from <= $1::date order by valid_from desc limit 1", [date]);
+  return r[0]?.phase === "deficit";
+}
 
 /** Objetivo vigente en `date` (el último con valid_from ≤ date). */
 export async function currentTargetTx(tx: Tx, date: string): Promise<NutritionTarget | null> {
@@ -231,6 +237,12 @@ export async function recalcTargets(userId: string, input: RecalcTargetsInput = 
     } else {
       explain.push(`Composición: ${es(comp.bfPct!)} % de grasa (método ${comp.method}, ±${es(comp.marginPts!)} puntos) → ${es(leanKg)} kg de masa magra.`);
     }
+    if (m.waist_cm != null) {
+      const whtr = Math.round((m.waist_cm / heightCm) * 1000) / 1000;
+      explain.push(`Cintura ${es(m.waist_cm)} cm: índice cintura/altura ${es(whtr)}. Para quedar en 0,50 o menos hace falta ${comp.whtrTargetWaistCm} cm o menos.`);
+    }
+    if (a.goal_waist_cm != null && a.goal_waist_cm > comp.whtrTargetWaistCm)
+      warnings.push(`Tu cintura objetivo (${es(a.goal_waist_cm)} cm) deja el índice cintura/altura en ${es(Math.round((a.goal_waist_cm / heightCm) * 1000) / 1000)}, por encima de 0,50. Si el objetivo es de salud, ${comp.whtrTargetWaistCm} cm.`);
 
     const tr = (await tx.query<{ n: number; first: string | null }>(
       `select

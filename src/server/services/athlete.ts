@@ -445,6 +445,8 @@ export type AnkleStatus = {
   painSource: "lesion" | "checkin" | null;
   /** Dolor al día siguiente de la última sesión de pierna. */
   painDayAfterLegs: number | null;
+  /** Dolor justo antes de la última sesión de pierna (registro «antes» o, si no, el check-in de ese día). */
+  painBeforeLegs: number | null;
   lastLegDay: string | null;
   injuryStatus: "abierta" | "vigilancia" | "cerrada" | null;
   rule: AnkleRule;
@@ -485,7 +487,10 @@ export async function ankleStatusTx(tx: Tx, date: string): Promise<AnkleStatus> 
        join fit.muscle_groups m on m.id = e.primary_muscle where s.workout_id = w.id and m.region = 'pierna')`, [date]);
   const lastLegDay = leg[0]?.d ?? null;
   let painDayAfterLegs: number | null = null;
+  let painBeforeLegs: number | null = null;
   if (lastLegDay) {
+    painBeforeLegs = logs.find((l) => l.date === lastLegDay && l.moment === "antes")?.pain
+      ?? checkins.find((c) => c.date === lastLegDay)?.pain ?? null;
     const next = addDays(lastLegDay, 1);
     const dayLogs = logs.filter((l) => l.date === next);
     const explicit = dayLogs.find((l) => l.moment === "dia_siguiente");
@@ -493,7 +498,7 @@ export async function ankleStatusTx(tx: Tx, date: string): Promise<AnkleStatus> 
     else if (dayLogs.length) painDayAfterLegs = Math.max(...dayLogs.map((l) => l.pain));
     else painDayAfterLegs = checkins.find((c) => c.date === next)?.pain ?? null;
   }
-  return { date, pain, painDate, painSource, painDayAfterLegs, lastLegDay, injuryStatus, rule: ankleRule(pain ?? 0, painDayAfterLegs) };
+  return { date, pain, painDate, painSource, painDayAfterLegs, painBeforeLegs, lastLegDay, injuryStatus, rule: ankleRule(pain ?? 0, painDayAfterLegs, painBeforeLegs) };
 }
 
 export async function getAnkleStatus(userId: string, input?: DateInput, db?: Db): Promise<AnkleStatus> {
