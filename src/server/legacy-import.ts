@@ -71,6 +71,8 @@ export async function importLegacy(userId: string, input: { entrenos: LegacyEntr
       await tx.query("delete from fit.workout_sets where workout_id = $1", [w.id]);
       report.workouts++;
 
+      // Todas las series de la sesión van en un solo insert: contra Supabase cada ida y vuelta cuesta ~100 ms.
+      const batch: unknown[] = [];
       let pos = 0;
       for (const e of d.ejercicios ?? []) {
         const sets = (e.sets ?? []).filter((s) => s);
@@ -92,16 +94,24 @@ export async function importLegacy(userId: string, input: { entrenos: LegacyEntr
           if (reps == null || reps < 0 || reps > 200 || (kg != null && (kg < 0 || kg > 2000))) { report.skippedSets++; continue; }
           idx++;
           const e1 = kg && reps ? estimate1RM({ kg, reps: Math.round(reps), rir }) : null;
-          await tx.query(
-            `insert into fit.workout_sets (workout_id, exercise_id, exercise_name_raw, exercise_position, set_index, kg, reps, rir,
-               rir_target, e1rm, e1rm_confidence, effective_reps, note, done_at, created_at)
-             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)`,
-            [w.id, exId, raw || null, pos, idx, kg, Math.round(reps), rir, clamp(num(e.rir), 0, 10), e1 ? Math.round(e1.value * 100) / 100 : null,
-              e1?.confidence ?? null, effectiveReps(Math.round(reps), rir), idx === 1 ? (e.nota ?? null) : null, `${row.fecha}T12:00:00Z`],
-          );
+          batch.push({
+            exercise_id: exId, exercise_name_raw: raw || null, exercise_position: pos, set_index: idx, kg, reps: Math.round(reps), rir,
+            rir_target: clamp(num(e.rir), 0, 10), e1rm: e1 ? Math.round(e1.value * 100) / 100 : null, e1rm_confidence: e1?.confidence ?? null,
+            effective_reps: effectiveReps(Math.round(reps), rir), note: idx === 1 ? (e.nota ?? null) : null,
+          });
           report.sets++;
         }
       }
+      if (batch.length)
+        await tx.query(
+          `insert into fit.workout_sets (workout_id, exercise_id, exercise_name_raw, exercise_position, set_index, kg, reps, rir,
+             rir_target, e1rm, e1rm_confidence, effective_reps, note, done_at, created_at)
+           select $1::uuid, x.exercise_id, x.exercise_name_raw, x.exercise_position, x.set_index, x.kg, x.reps, x.rir,
+             x.rir_target, x.e1rm, x.e1rm_confidence, x.effective_reps, x.note, $2::timestamptz, $2::timestamptz
+             from jsonb_to_recordset($3::jsonb) as x(exercise_id uuid, exercise_name_raw text, exercise_position smallint, set_index smallint,
+               kg numeric, reps smallint, rir numeric, rir_target numeric, e1rm numeric, e1rm_confidence text, effective_reps smallint, note text)`,
+          [w.id, `${row.fecha}T12:00:00Z`, JSON.stringify(batch)],
+        );
     }
 
     const st = input.estado?.data;
