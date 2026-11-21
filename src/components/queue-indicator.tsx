@@ -43,7 +43,7 @@ export function QueueIndicator() {
       <button
         type="button"
         onClick={() => (items.length ? void flush() : setNote(null))}
-        className="fig micro min-h-9 border border-blood-ink bg-ink-1 px-3 text-bone"
+        className="fig micro min-h-9 border border-accent-ink bg-surface px-3 text-fg"
         style={{ borderRadius: "var(--radius)" }}
       >
         {items.length ? `${items.length} sin enviar${busy ? " · enviando" : " · tocar para reintentar"}` : note}

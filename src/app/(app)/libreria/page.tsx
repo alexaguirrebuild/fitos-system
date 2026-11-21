@@ -48,7 +48,7 @@ export default async function LibreriaPage({ searchParams }: PageProps<"/libreri
               </select>
             </div>
             <label className="flex min-h-12 items-center gap-3">
-              <input type="checkbox" name="tobillo" value="1" defaultChecked={safe} className="h-5 w-5 accent-[var(--blood-ink)]" />
+              <input type="checkbox" name="tobillo" value="1" defaultChecked={safe} className="h-5 w-5 accent-[var(--accent-ink)]" />
               Solo seguros para el tobillo
             </label>
           </>
@@ -87,7 +87,7 @@ export default async function LibreriaPage({ searchParams }: PageProps<"/libreri
                         {e.ankleLoad === "alta" || e.impact ? <span className="accent"> · carga el tobillo</span> : null}
                       </span>
                     </span>
-                    <IconChevron className="flex-none text-bone-3" />
+                    <IconChevron className="flex-none text-fg-3" />
                   </Link>
                 </li>
               ))}

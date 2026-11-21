@@ -239,7 +239,7 @@ export function Wizard({ initial }: { initial: WizardInitial }) {
     d ? (
       <div className="mt-4 border-y border-line py-3">
         <p className="small muted">
-          Último dato guardado: <span className="fig text-bone">{num(d.value)} {unit}</span> · {day(d.date, initial.today)}. No se da por bueno hasta que lo confirmes.
+          Último dato guardado: <span className="fig text-fg">{num(d.value)} {unit}</span> · {day(d.date, initial.today)}. No se da por bueno hasta que lo confirmes.
         </p>
         <button type="button" className="btn mt-3" onClick={() => set(num(d.value))}>
           Hoy sigue en {num(d.value)} {unit}
@@ -328,7 +328,7 @@ export function Wizard({ initial }: { initial: WizardInitial }) {
         <>
           {initial.ankle?.lastPain != null ? (
             <p className="small muted mb-3">
-              Último apunte: <span className="fig text-bone">{initial.ankle.lastPain}/10</span> · {day(initial.ankle.lastPainDate, initial.today)}
+              Último apunte: <span className="fig text-fg">{initial.ankle.lastPain}/10</span> · {day(initial.ankle.lastPainDate, initial.today)}
             </p>
           ) : null}
           <fieldset disabled={run === "cerrada"} className={run === "cerrada" ? "opacity-40" : undefined}>
@@ -598,7 +598,7 @@ export function Wizard({ initial }: { initial: WizardInitial }) {
 
         {error ? <p role="alert" className="err mt-4">{error}</p> : null}
 
-        <div className="sticky bottom-0 -mx-5 mt-8 border-t border-line bg-ink-0 px-5 pt-3" style={{ paddingBottom: "calc(var(--safe-b) + 12px)" }}>
+        <div className="sticky bottom-0 -mx-5 mt-8 border-t border-line bg-bg px-5 pt-3" style={{ paddingBottom: "calc(var(--safe-b) + 12px)" }}>
           {step !== "programa" ? (
             <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={pending}>
               {pending ? "Guardando…" : last ? "Ir a Hoy" : "Continuar"}

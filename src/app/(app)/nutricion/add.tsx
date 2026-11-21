@@ -54,7 +54,7 @@ export function AddFood({ today, templates, yesterday, yesterdayDate }: {
       {queued.length ? (
         <ul className="mt-2">
           {queued.map((q) => (
-            <li key={q.id} className="fig small flex justify-between border-b border-line py-2 text-bone-2">
+            <li key={q.id} className="fig small flex justify-between border-b border-line py-2 text-fg-2">
               <span className="truncate">{q.label}</span>
               <span className="micro accent flex-none">sin enviar</span>
             </li>
@@ -371,9 +371,9 @@ function Scanner({ onFood, onMissing }: { onFood: (f: Food) => void; onMissing: 
   return (
     <div>
       {status !== "sin_soporte" && status !== "sin_permiso" ? (
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-ink-0">
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-bg">
           <video ref={video} className="h-full w-full object-cover" playsInline muted aria-label="Cámara para leer el código de barras" />
-          <div className="pointer-events-none absolute inset-x-8 top-1/2 h-px bg-blood-ink" />
+          <div className="pointer-events-none absolute inset-x-8 top-1/2 h-px bg-accent-ink" />
         </div>
       ) : null}
       <p className="small muted mt-2" role="status">

@@ -38,11 +38,11 @@ export function PomsProfile({ normalized }: { normalized: Profile }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label={`Perfil POMS: ${SCALES.map((s) => `${s.l} ${Math.round(normalized[s.k] * 100)} %`).join(", ")}.`}>
       {[0, 0.5, 1].map((t) => <line key={t} x1={L} x2={W - L} y1={y(t)} y2={y(t)} stroke="var(--line)" />)}
-      <path d={d} fill="none" stroke="var(--bone)" strokeWidth="1.6" />
+      <path d={d} fill="none" stroke="var(--fg)" strokeWidth="1.6" />
       {SCALES.map((s, k) => (
         <g key={s.k}>
-          <circle cx={x(k)} cy={y(normalized[s.k])} r="3" fill={s.k === "vigor" ? "var(--blood-ink)" : "var(--bone)"} />
-          <text x={x(k)} y={H - 8} textAnchor="middle" fontSize="10.5" fill="var(--bone-2)">{s.l}</text>
+          <circle cx={x(k)} cy={y(normalized[s.k])} r="3" fill={s.k === "vigor" ? "var(--accent-ink)" : "var(--fg)"} />
+          <text x={x(k)} y={H - 8} textAnchor="middle" fontSize="10.5" fill="var(--fg-2)">{s.l}</text>
         </g>
       ))}
     </svg>

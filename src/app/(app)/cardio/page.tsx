@@ -118,7 +118,7 @@ export default async function CardioPage() {
 
       <Section title="Conectar el reloj" id="reloj">
         <p className="small muted">
-          El reloj o un atajo del móvil envían los datos con un token de ingesta a <span className="fig text-bone">POST /api/ingest/health</span>. El token se enseña una sola vez.
+          El reloj o un atajo del móvil envían los datos con un token de ingesta a <span className="fig text-fg">POST /api/ingest/health</span>. El token se enseña una sola vez.
         </p>
         {live.length ? (
           <ul className="rows mt-3">
@@ -141,7 +141,7 @@ export default async function CardioPage() {
         </FormAction>
         <details className="fold mt-3">
           <summary>Ejemplo de cuerpo (datos de muestra)</summary>
-          <pre className="fold-b fig micro overflow-x-auto whitespace-pre text-bone-2">{`Authorization: Bearer fit_ing_…\nContent-Type: application/json\n\n${JSON.stringify(HEALTH_INGEST_EXAMPLE, null, 1)}`}</pre>
+          <pre className="fold-b fig micro overflow-x-auto whitespace-pre text-fg-2">{`Authorization: Bearer fit_ing_…\nContent-Type: application/json\n\n${JSON.stringify(HEALTH_INGEST_EXAMPLE, null, 1)}`}</pre>
         </details>
         <p className="micro faint mt-2">El mismo ejemplo, siempre al día, en GET /api/ingest/health. {num(1000, 0)} muestras por lote como máximo.</p>
       </Section>

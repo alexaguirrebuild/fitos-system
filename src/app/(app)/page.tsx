@@ -16,18 +16,21 @@ export default async function HoyPage() {
   const n = t.nutrition;
   const session = tr?.next ?? null;
 
+  const cta = a.kind === "empezar_sesion" ? "Empezar sesión" : a.kind === "continuar_sesion" ? "Continuar sesión" : a.kind === "checkin" ? "Hacer check-in" : a.kind === "pesaje" ? "Apuntar peso" : a.kind === "comida" ? "Registrar comida" : a.kind === "onboarding" ? "Completar ficha" : "Abrir";
+  const kg = t.weight?.trendKg ?? t.weight?.lastKg ?? null;
+
   return (
     <main className="page">
       <header>
-        <p className="muted small">
+        <p className="small muted">
           {t.weekday.replace(/^./, (c) => c.toUpperCase())}, {day(t.date)}
-          {tr?.plan ? ` · día ${tr.plan.microcycle.day} de ${tr.plan.microcycle.lengthDays}` : ""}
+          {tr?.plan ? <> · <Link className="link" href="/programa">día {tr.plan.microcycle.day} de {tr.plan.microcycle.lengthDays}</Link></> : ""}
         </p>
-        <h1 className="display mt-2 text-[2.5rem]">{a.label}</h1>
-        <p className="muted mt-2">{a.detail}</p>
+        <h1 className="display mt-3 text-[3rem]">{a.label}</h1>
+        <p className="muted mt-3 max-w-[34ch]">{a.detail}</p>
         {a.kind !== "nada" ? (
-          <Link href={a.href} className="btn btn-primary btn-lg btn-block mt-5">
-            {a.kind === "empezar_sesion" ? "Empezar" : a.kind === "continuar_sesion" ? "Continuar" : a.kind === "checkin" ? "Hacer check-in" : a.kind === "pesaje" ? "Apuntar peso" : a.kind === "comida" ? "Registrar comida" : a.kind === "onboarding" ? "Completar ficha" : "Abrir"}
+          <Link href={a.href} className="btn btn-primary btn-lg btn-block mt-6">
+            {cta}
           </Link>
         ) : null}
       </header>
@@ -41,70 +44,66 @@ export default async function HoyPage() {
       ) : t.load?.deload.maintenance ? (
         <p className="notice mt-5 small">Periodo de exámenes: semana de mantenimiento, sin subir volumen.</p>
       ) : null}
+      {t.ankle?.restricted ? <p className="notice notice-warn mt-3 small">Tobillo restringido hoy: sin impacto.</p> : null}
 
-      <section className="rows mt-7" aria-label="Estado de hoy">
-        <Row
-          href="/bienestar"
-          k="Readiness"
-          v={t.checkin?.readiness != null ? <span className="fig">{Math.round(t.checkin.readiness)}</span> : "Check-in pendiente"}
-          note={t.checkin?.label ?? undefined}
-          warn={t.needsCheckin}
-        />
-        <Row
-          href="/bienestar"
-          k="Tobillo"
-          v={t.ankle?.pain != null ? <span className="fig">{t.ankle.pain}/10</span> : "Sin dato"}
-          note={t.ankle ? `${t.ankle.restricted ? "Restringido: sin impacto" : "Sin restricción"}${t.ankle.painDate && t.ankle.painDate !== t.date ? ` · ${ago(t.ankle.painDate, t.date)}` : ""}` : undefined}
-          warn={t.ankle?.restricted}
-        />
+      <section className="mt-8 grid grid-cols-3 gap-x-3 border-y border-line py-5" aria-label="Cifras de hoy">
+        <Link href="/bienestar" className="min-w-0">
+          <span className="small muted block">Readiness</span>
+          <span className={`display mt-1 block text-[2.75rem] ${t.needsCheckin ? "faint" : ""}`}>{t.checkin?.readiness != null ? Math.round(t.checkin.readiness) : "—"}</span>
+          <span className="micro faint mt-1 block truncate">{t.checkin?.readiness != null ? "de 100" : "sin check-in"}</span>
+        </Link>
+        <Link href="/progreso" className="min-w-0 border-l border-line pl-3">
+          <span className="small muted block">Peso</span>
+          <span className="display mt-1 block text-[2.75rem]">{kg != null ? num(kg) : "—"}</span>
+          <span className={`micro mt-1 block truncate ${(t.weight?.daysSinceWeighIn ?? 0) > 3 ? "accent" : "faint"}`}>
+            {t.weight?.weeklyRatePct != null ? `${signed(t.weight.weeklyRatePct, 2)} %/sem` : t.weight?.lastDate ? (t.weight.trendKg != null ? "kg, tendencia" : "kg, última") : "sin pesadas"}
+          </span>
+        </Link>
+        <Link href="/nutricion" className="min-w-0 border-l border-line pl-3">
+          <span className="small muted block">Proteína</span>
+          <span className="display mt-1 block text-[2.75rem]">{n?.remaining ? int(Math.max(0, n.remaining.proteinG)) : "—"}</span>
+          <span className="micro faint mt-1 block truncate">{n?.remaining ? "g restantes" : "sin objetivos"}</span>
+        </Link>
+      </section>
+
+      <section className="rows mt-2" aria-label="Más estado">
         <Row
           href="/nutricion"
-          k={n ? `Día ${n.dayType === "on" ? "On" : "Off"}` : "Comida"}
-          v={n?.remaining ? <span className="fig">{int(n.remaining.kcal)} kcal · {int(n.remaining.proteinG)} g P</span> : n ? "Sin objetivos" : "Sin dato"}
-          note={n?.remaining ? `restantes${n.dayTypeAssumed ? " · tipo de día supuesto" : ""}` : n ? "Recalcula los objetivos en Comida" : undefined}
+          k={n ? `Calorías · día ${n.dayType === "on" ? "On" : "Off"}` : "Comida"}
+          v={n?.remaining ? <span className="fig">{int(n.remaining.kcal)} kcal</span> : n ? "Sin objetivos" : "Sin dato"}
+          note={n?.remaining ? `restantes${n.dayTypeAssumed ? " · tipo de día supuesto" : ""}` : undefined}
         />
         <Row
           href="/cardio"
           k="Pasos"
           v={<span className="fig">{t.activity?.steps.done != null ? int(t.activity.steps.done) : "—"}{t.activity?.steps.goal != null ? ` / ${int(t.activity.steps.goal)}` : ""}</span>}
-          note={t.activity?.steps.done == null ? "Sin dato de hoy" : undefined}
-        />
-        <Row
-          href="/progreso"
-          k="Peso"
-          v={t.weight?.trendKg != null ? <span className="fig">{num(t.weight.trendKg)} kg</span> : t.weight?.lastKg != null ? <span className="fig">{num(t.weight.lastKg)} kg</span> : "Sin pesadas"}
-          note={
-            t.weight?.lastDate
-              ? `${t.weight.trendKg != null ? "tendencia" : "última pesada"}${t.weight.weeklyRatePct != null ? ` · ${signed(t.weight.weeklyRatePct, 2)} %/sem` : ""} · pesada ${t.weight.daysSinceWeighIn === 0 ? "hoy" : `hace ${t.weight.daysSinceWeighIn} d`}`
-              : undefined
-          }
-          warn={(t.weight?.daysSinceWeighIn ?? 0) > 3}
+          note={t.activity?.steps.done == null ? "sin dato de hoy" : undefined}
         />
         <Row
           href="/progreso#carga"
           k="Carga"
           v={t.load ? (t.load.acwr.reliable && t.load.acwr.ratio != null ? <span className="fig">{num(t.load.acwr.ratio, 2)}</span> : "Aún sin ratio") : "Sin dato"}
-          note={t.load ? `${t.load.acwr.label}${t.load.acwr.reliable ? " · agudo/crónico, es un semáforo" : ""}` : undefined}
+          note={t.load ? t.load.acwr.label : undefined}
           warn={t.load?.acwr.zone === "pico" || t.load?.acwr.zone === "precaucion"}
         />
       </section>
 
-      <Section title="Peso" id="peso" aside={t.weight?.goalKg != null && t.weight.toGoalKg != null ? <span className="fig">{num(Math.abs(t.weight.toGoalKg))} kg al objetivo ({num(t.weight.goalKg)})</span> : undefined}>
-        <BodyForm />
-      </Section>
-
-      <Section title={session ? session.name : tr ? KIND[tr.todayKind] : "Sesión"} id="sesion" aside={session?.plannedMinutes ? <span className="fig">{session.plannedMinutes} min</span> : undefined}>
+      <section className="sec" id="sesion" aria-labelledby="sesion-t">
+        <div className="mb-3 flex items-baseline justify-between gap-4">
+          <h2 className="h-sec" id="sesion-t">{session ? session.name : tr ? KIND[tr.todayKind] : "Sesión"}</h2>
+          {session?.plannedMinutes ? <span className="fig small muted">{session.plannedMinutes} min</span> : null}
+        </div>
         {!tr || tr.todayKind === "sin_plan" ? (
           <p className="muted">
             No hay programa activo. <Link className="link" href="/ajustes#programa">Elige uno</Link> para ver la sesión del día.
           </p>
         ) : tr.inProgress ? (
-          <p className="muted">
-            En curso: <span className="fig text-bone">{tr.inProgress.exercisesDone}/{tr.inProgress.exercisesTotal}</span> ejercicios, <span className="fig text-bone">{num(tr.inProgress.hardSets)}</span> series efectivas.
+          <p className="muted mb-3">
+            En curso: <span className="fig text-fg">{tr.inProgress.exercisesDone}/{tr.inProgress.exercisesTotal}</span> ejercicios, <span className="fig text-fg">{num(tr.inProgress.hardSets)}</span> series efectivas.
           </p>
         ) : null}
         {tr?.doneToday.length ? (
-          <ul className="rows">
+          <ul className="rows mb-3">
             {tr.doneToday.map((d) => (
               <li key={d.workoutId}>
                 <Row href={`/entreno/${d.workoutId}`} k={d.name ?? "Sesión"} v={<span className="fig">{num(d.hardSets)} series{d.tonnage != null ? ` · ${int(d.tonnage)} kg` : ""}</span>} note="hecha hoy" />
@@ -113,30 +112,33 @@ export default async function HoyPage() {
           </ul>
         ) : null}
         {session && session.exercises.length ? (
-          <details className="fold" open={!tr?.trainedToday}>
-            <summary>
-              {session.exercises.length} ejercicios{session.focus ? ` · ${session.focus}` : ""}
-            </summary>
-            <ol className="fold-b">
-              {session.exercises.map((e) => (
-                <li key={e.exerciseId} className="border-b border-line py-2.5 last:border-b-0">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className={e.done ? "text-bone-2" : undefined}>{e.name}</span>
-                    <span className="fig small flex-none">
-                      {e.suggestion?.kg != null ? `${num(e.suggestion.kg, 2)} kg × ` : `${e.sets} × `}
-                      {repRange(e.repMin, e.repMax)}
-                      {e.rirTarget != null ? ` · RIR ${num(e.rirTarget)}` : ""}
-                    </span>
-                  </div>
-                  {e.suggestion ? <p className="micro faint mt-0.5">{e.suggestion.why}</p> : null}
-                  {e.ankleWarning ? <p className="micro accent mt-0.5">{e.ankleWarning}</p> : null}
-                </li>
-              ))}
-            </ol>
-          </details>
+          <ol className="slab divide-y divide-line px-4">
+            {session.exercises.map((e, k) => (
+              <li key={e.exerciseId} className="flex items-center gap-3 py-3.5">
+                <span className={`fig w-5 flex-none text-sm ${e.done ? "faint" : "muted"}`}>{k + 1}</span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block font-semibold leading-snug ${e.done ? "faint line-through" : ""}`}>{e.name}</span>
+                  {e.suggestion?.kg != null ? <span className="micro faint mt-0.5 block">{e.suggestion.why}</span> : null}
+                </span>
+                <span className="flex-none text-right">
+                  <span className="display block text-[1.625rem]">
+                    {e.suggestion?.kg != null ? <>{num(e.suggestion.kg, 2)}<span className="unit">kg</span></> : <>{e.sets}<span className="unit">series</span></>}
+                  </span>
+                  <span className="fig micro muted block">
+                    × {repRange(e.repMin, e.repMax)}
+                    {e.rirTarget != null ? ` · RIR ${num(e.rirTarget)}` : ""}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
         ) : tr && tr.todayKind === "descanso" ? (
           <p className="muted">La rueda marca descanso. Pasos y a dormir.</p>
         ) : null}
+      </section>
+
+      <Section title="Peso" id="peso" aside={t.weight?.goalKg != null && t.weight.toGoalKg != null ? <span className="fig">{num(Math.abs(t.weight.toGoalKg))} kg al objetivo ({num(t.weight.goalKg)})</span> : undefined}>
+        <BodyForm />
       </Section>
 
       <Section title="Anotaciones" id="notas">
@@ -147,7 +149,7 @@ export default async function HoyPage() {
             {t.annotations.slice(0, 6).map((x) => (
               <li key={x.id} className="row items-start">
                 <span className="min-w-0">
-                  <span className={`block font-medium ${x.severity !== "info" ? "accent" : ""}`}>{x.title}</span>
+                  <span className={`block font-semibold ${x.severity !== "info" ? "accent" : ""}`}>{x.title}</span>
                   {x.body ? <span className="small muted block">{x.body}</span> : null}
                   <span className="fig micro faint">{ago(x.date, t.date)} · {x.scope}</span>
                 </span>

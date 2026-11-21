@@ -1,17 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Bodoni_Moda, IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import { Archivo } from "next/font/google";
 import { ServiceWorker } from "@/components/sw-register";
 import "./globals.css";
 
-const bodoni = Bodoni_Moda({ variable: "--font-bodoni", subsets: ["latin"], display: "swap" });
-const grotesk = Space_Grotesk({ variable: "--font-grotesk", subsets: ["latin"], display: "swap" });
-const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500"], display: "swap" });
+/** Una sola familia variable: el eje de anchura (62-125) hace la jerarquía; la condensada pesada, las cifras que mandan. */
+const archivo = Archivo({ variable: "--font-archivo", subsets: ["latin"], axes: ["wdth"], display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Sistema Físico", template: "%s · Sistema Físico" },
   description: "Entreno, comida y recuperación en un solo sitio.",
   applicationName: "Sistema Físico",
-  appleWebApp: { capable: true, title: "Físico", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Físico", statusBarStyle: "default" },
   icons: {
     icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
@@ -20,16 +19,19 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0e0c0a",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f3f4f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0e10" },
+  ],
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  colorScheme: "dark",
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" className={`${bodoni.variable} ${grotesk.variable} ${plexMono.variable} antialiased`}>
+    <html lang="es" className={`${archivo.variable} antialiased`}>
       <body>
         {children}
         <ServiceWorker />
