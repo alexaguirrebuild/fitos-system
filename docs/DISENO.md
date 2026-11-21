@@ -1,40 +1,52 @@
 # Diseño
 
-Herramienta personal de Alex (no es la marca THEOVERCODE). Se usa con una mano, en el gimnasio, entre series, a 390 px y a veces sin cobertura. Por eso es oscura: luz de sala irregular, pantalla a medio brillo, sudor.
+Herramienta personal de Alex, sin marca THEOVERCODE. Se usa con una mano en el gimnasio a 390 px y, para planificar, en escritorio a 1280 px.
 
-## Dirección
+## Por qué la v1 parecía hecha con IA
 
-Un libro de registro editado como un almanaque deportivo. La pantalla es una pantalla de trabajo: navegación inferior estándar, listas, campos y botones que ya se saben usar. El mundo solo aporta cuatro cosas:
+Capturas de antes en `docs/capturas/*.png`; después, en `docs/capturas/v2/`.
 
-- **Tipo.** Bodoni Moda (didona) para la única cifra o frase que manda en cada pantalla; Space Grotesk para texto y controles; IBM Plex Mono, tabular, para toda cifra medida.
-- **Paleta.** Negro cálido, hueso y un solo acento: rojo sangre seco.
-- **Densidad.** Filas de libro de registro: etiqueta a la izquierda, cifra a la derecha, filete de 1 px. Sin tarjetas en rejilla.
-- **Gesto propio.** El objetivo de la serie compuesto en didona grande («100 kg × 8-10 · RIR 2») con su porqué debajo en una línea.
+- **Caía en el clúster editorial.** Didona (Bodoni) + negro cálido + un rojo + etiquetas en mono: es la estética que sale por defecto cuando se pide «serio y premium». Se adivinaba sin saber de qué iba la app.
+- **Mono como disfraz.** IBM Plex Mono en todas las cifras para parecer técnico. Con tres familias, ninguna mandaba.
+- **Jerarquía plana.** Hoy era una lista de seis filas iguales (readiness, tobillo, día On, pasos, peso, carga) con la misma letra, el mismo peso y el mismo filete. Nada pesaba más que nada.
+- **Sin un solo dato protagonista.** La cifra que importa (la carga de la próxima serie, el peso de tendencia, la proteína que falta) iba al mismo tamaño que su nota.
+- **Sin imagen.** Ni cuerpo, ni gráfica principal en Hoy, ni forma reconocible: solo texto y filetes.
+- **Tobillo con protagonismo** que ya no tiene: fila fija en Hoy y avisos en cada ejercicio.
+- **Densidad uniforme.** Todas las secciones al mismo ritmo, sin pasajes densos ni pasajes tranquilos.
 
-Lo que se rechaza: frases de póster, emojis, etiquetas en mayúsculas sobre los títulos, degradados, sombras, rebotes, anillos decorativos.
+## Astryx
+
+Evaluado (github.com/meta/astryx, v0.7, beta). **No se adopta.** Exige StyleX con su compilador en el build, que se suma a Tailwind 4 en vez de sustituirlo: dos sistemas de estilos, un plugin más en Turbopack y una dependencia en beta para una app de una persona. Se toma de él la idea que sí sirve: el tema como un juego de propiedades CSS con nombres semánticos (`--bg`, `--fg`, `--accent`…) y los modos claro y oscuro como redefinición de esas mismas propiedades.
+
+## Dirección: sala de pesas
+
+Grafito, tiza y los colores de los discos de competición. El amarillo del disco de 15 kg es el acento; el azul (20 kg) y el rojo (25 kg) solo codifican datos.
+
+- **Tipo.** Una sola familia variable, **Archivo**, y su eje de anchura como jerarquía: condensada al 62,5 % y peso 800 para la cifra que manda (`.display`), al 75 % para títulos de página, normal para texto. Cifras tabulares de la propia familia; sin mono.
+- **Una cifra protagonista por pantalla**, enorme (48-80 px): la acción en Hoy, la carga objetivo en el entreno, la mejor marca en la ficha, el peso en Progreso, las kcal en Comida.
+- **Mapa muscular** propio en SVG (`src/components/body-map.tsx`), frente y espalda: azul bajo el MEV, amarillo dentro del rango (más intenso cerca del MRV), rojo por encima.
+- **Bloques elevados (`.slab`)** solo para lo que se toca o se lee de un vistazo: la sesión de hoy, el ejercicio activo, las sesiones de `/programa`. El resto, filas con filete.
+- **Navegación**: barra inferior en móvil, raíl a la izquierda desde 1024 px con «Programa».
 
 ## Tokens (`src/app/globals.css`)
 
-| Token | Valor | Uso |
-|---|---|---|
-| `--ink-0` | `#0e0c0a` | Fondo |
-| `--ink-1` | `#15120f` | Superficie (hojas, avisos, barra fija) |
-| `--ink-2` | `#1e1a16` | Campos y pasadores |
-| `--line` / `--line-strong` | `#2c2621` / `#4a4037` | Filetes / bordes de control |
-| `--bone` | `#ece4d6` | Texto (15,6:1 sobre el fondo) |
-| `--bone-2` | `#b3a999` | Texto secundario (8,3:1) |
-| `--bone-3` | `#8f8577` | Texto terciario (5,2:1) |
-| `--blood` / `--blood-hi` | `#8a1c14` / `#a52419` | Acento como relleno: la acción principal (texto hueso encima, 7,3:1) |
-| `--blood-ink` | `#e06a57` | El mismo acento como texto o trazo: avisos, PR, MRV (5,9:1) |
-| `--radius` | `2px` | Radio único |
-| `--ease` | `cubic-bezier(.16,1,.3,1)` | Única curva; 140-320 ms; nada con `prefers-reduced-motion` |
+| Token | Claro | Oscuro | Uso |
+|---|---|---|---|
+| `--bg` | `#f3f4f2` | `#0c0e10` | Fondo |
+| `--surface` | `#ffffff` | `#15181b` | Bloques, hojas, barra fija |
+| `--field` / `--raise` | `#e9ebe8` / `#dfe2de` | `#1c2024` / `#252a2f` | Campos y pasadores / silueta, zona MEV-MRV |
+| `--line` / `--line-strong` | `#d9dcd8` / `#b4b9b4` | `#262b30` / `#3b424a` | Filetes / bordes de control |
+| `--fg` / `--fg-2` / `--fg-3` | `#111315` / `#474e55` / `#646c73` | `#eef0f1` / `#a8afb6` / `#7f878f` | Texto (≥ 5:1 el terciario) |
+| `--accent` | `#f2c230` | `#f2c230` | Relleno de la acción principal, texto `--on-accent` encima |
+| `--accent-ink` | `#7f6100` | `#f2c230` | El acento como texto: aviso, PR |
+| `--hot` / `--cool` | `#c62a2f` / `#2b5fcf` | `#ff6b5e` / `#6b9bff` | Sobre el máximo y errores / bajo el mínimo |
 
-Escala: didona 40 / 36 / 32 / 22 px; texto 16; secundario 14; mínimo 13. Zonas táctiles de 48 px o más (60 la acción principal, 56 los pasadores). `env(safe-area-inset-*)` en la barra inferior, la barra fija y las hojas.
+Espaciado en múltiplos de 4 px (más aire encima de un título que debajo). Radios: 10 px controles, 14 px acción grande y pasadores, 18 px bloques y hojas, píldora en chips y pestañas. Movimiento: `--ease` `cubic-bezier(.2,.8,.2,1)` con 120 / 200 / 320 ms; la hoja sube, los botones ceden un 1,5 % al pulsar; nada con `prefers-reduced-motion`. Modo: sigue al sistema (`prefers-color-scheme`).
 
 ## Reglas
 
-- Una sola acción roja por pantalla. El rojo como texto significa aviso o marca, nunca adorno.
+- Una sola acción amarilla por pantalla.
 - Toda cifra lleva unidad; si no es de hoy, su fecha; si es estimada, lo dice.
 - Estado vacío = qué falta y qué registrar. Nunca datos de ejemplo.
-- Gráficas en SVG propio (`src/components/charts.tsx`): puntos para el dato diario, línea para la tendencia, discontinua roja para el objetivo.
-- Foco visible en hueso, 2 px. Selección en rojo. Barras de desplazamiento finas del color de los filetes.
+- Gráficas en SVG propio (`src/components/charts.tsx`): línea gruesa con área suave para la serie protagonista, puntos para el dato diario.
+- Zonas táctiles de 44 px o más (60 px la acción principal y los pasadores).

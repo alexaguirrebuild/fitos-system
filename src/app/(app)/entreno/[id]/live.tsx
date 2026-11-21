@@ -227,7 +227,23 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
               </div>
               {b.replaces ? <p className="micro faint">En lugar de {b.replaces.name}</p> : null}
 
-              <p className="display mt-3 text-[2.75rem]">{targetText(b)}</p>
+              {(() => {
+                const s = b.suggestion;
+                const p = b.prescription;
+                const reps = p && (p.repMin != null || p.repMax != null) ? repRange(p.repMin, p.repMax) : s?.repsTarget.length ? repRange(Math.min(...s.repsTarget), Math.max(...s.repsTarget)) : null;
+                const rir = s?.rirTarget ?? p?.rirTarget ?? null;
+                return (
+                  <p className="mt-3 flex flex-wrap items-baseline gap-x-3">
+                    <span className="display text-[3.5rem]">
+                      {s?.kg != null ? <>{num(s.kg, 2)}<span className="unit">kg</span></> : reps ? <>{reps}<span className="unit">reps</span></> : "Libre"}
+                    </span>
+                    <span className="fig text-lg font-semibold">
+                      {s?.kg != null && reps ? `× ${reps}` : s?.kg == null ? "carga libre" : ""}
+                      {rir != null ? <span className="muted font-normal"> · RIR {num(rir)}</span> : null}
+                    </span>
+                  </p>
+                );
+              })()}
               {b.suggestion ? (
                 <p className="small muted mt-1.5">
                   <span className="font-semibold text-fg">{RULE[b.suggestion.rule] ?? b.suggestion.rule}.</span> {b.suggestion.why}
