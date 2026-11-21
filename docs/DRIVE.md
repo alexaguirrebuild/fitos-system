@@ -4,11 +4,11 @@ Investigado el 21-nov-2026. Cada afirmación lleva **VERIFICADO** (leído hoy, c
 
 ## 1. Estructura propuesta
 
-El código ya fija parte de la ruta (`src/server/services/media.ts`): todo cuelga de `DRIVE_ROOT_FOLDER_ID` → `<macrociclo>/…` — VERIFICADO (`DRIVE_APP_FOLDER`, `buildVideoPath`, `buildPhotoPath`).
+El código ya fija parte de la ruta (`src/server/services/media.ts`): todo cuelga de `DRIVE_ROOT_FOLDER_ID` → `<macrociclo>/…` — VERIFICADO (`buildVideoPath`, `buildPhotoPath`). La raíz es la carpeta **FITOS SYSTEM** de Mi unidad, creada por la app el 21-nov-2026 (por eso `drive.file` puede escribir en ella).
 
 ```
 <DRIVE_ROOT_FOLDER_ID>/
-└── Sistema Físico/
+└── FITOS SYSTEM/   (= DRIVE_ROOT_FOLDER_ID)
     ├── <macrociclo>/                    ← lo crea la app (macrociclo activo o «Sin macrociclo»)
     │   ├── Fotos/                       ← progreso: AAAA-MM-DD_<frontal|lateral|trasera|otra>.jpg   (ya en código)
     │   └── Vídeos/<ejercicio>/          ← AAAA-MM-DD_<ejercicio>_<kg>kgx<reps>.mp4                (ya en código)
@@ -72,11 +72,15 @@ Interfaz de Google Cloud: rutas de menú SIN VERIFICAR hoy (cambian a menudo).
 
 1. https://console.cloud.google.com → crear proyecto `sistema-fisico`.
 2. *APIs y servicios → Biblioteca* → **Google Drive API** → Habilitar.
-3. *Google Auth Platform → Branding / Audiencia*: tipo **External**, nombre «Sistema Físico», tu correo de soporte. Añádete como usuario de prueba.
+3. *Google Auth Platform → Branding / Audiencia*: tipo **External**, nombre «FITOS SYSTEM», tu correo de soporte. Añádete como usuario de prueba.
 4. *Data access / Scopes* → añadir solo `.../auth/drive.file`.
 5. *Clients → Create client* → tipo **Web application**. URI de redirección: `https://developers.google.com/oauthplayground`. Guarda el **Client ID** y el **Client secret** (no los pegues en chats ni en el repo).
 6. *Audiencia* → **Publish app** (pasar a *In production*), para que el refresh token no caduque a los 7 días.
 7. Sacar el refresh token: https://developers.google.com/oauthplayground → engranaje → «Use your own OAuth credentials» (pega ID y secret) → en el paso 1 escribe `https://www.googleapis.com/auth/drive.file` → Authorize → acepta con tu cuenta → paso 2 «Exchange authorization code for tokens» → copia el **refresh_token**.
-8. Crear la carpeta raíz **desde la app** (salida (a) de arriba) o, como prueba rápida, con el Playground: `POST https://www.googleapis.com/drive/v3/files` con cuerpo `{"name":"Sistema Físico (raíz)","mimeType":"application/vnd.google-apps.folder"}` → copia el `id`.
+8. Crear la carpeta raíz **desde la app** (salida (a) de arriba) o, como prueba rápida, con el Playground: `POST https://www.googleapis.com/drive/v3/files` con cuerpo `{"name":"FITOS SYSTEM","mimeType":"application/vnd.google-apps.folder"}` → copia el `id`.
 9. Mete las cuatro variables en el gestor de secretos del despliegue (no en el repo): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_ROOT_FOLDER_ID`.
-10. Prueba: subir una foto desde la app y comprobar que aparece en `Sistema Físico/<macrociclo>/Fotos/` con estado `subido`.
+10. Prueba: subir una foto desde la app y comprobar que aparece en `FITOS SYSTEM/<macrociclo>/Fotos/` con estado `subido`.
+
+## 5. Estado (21-nov-2026)
+
+Hecho: cliente OAuth web con URIs de redirección `http://localhost:53682/callback` y la del OAuth Playground; app «FITOS SYSTEM» publicada en producción (el refresh token no caduca a los 7 días); scope `drive.file`; carpeta raíz «FITOS SYSTEM» creada por la app; las 4 variables en Vercel (proyecto `fitos-system`). Sin probar: una subida real de foto o vídeo desde la app.
