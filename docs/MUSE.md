@@ -18,6 +18,13 @@ Lo que pasa después:
 
 La primera vez, dile: «Llama a `whoami` y a `server_guide`, y después a `get_today`». `server_guide` le da el flujo y las reglas.
 
+Conectado de verdad el 21-nov-2026 en `https://fitos-system.vercel.app/api/mcp` (cliente «Muse», redirect `https://agent.meta.ai/api/hatch/oauth/callback`). Lo que el cliente de Meta hace distinto y la app ya tolera:
+- Se come la barra de las rutas de OAuth: pide `/oauthorize` y `/oauthtoken`. Hay alias en `src/app/oauthorize`, `oauthtoken`, `oauthregister` y `oauthrevoke`.
+- Manda los scopes en un formato que el validador estricto rechazaba (`invalid_scope`). Ahora se aceptan comas o «+» y se ignoran los scopes desconocidos.
+- `resource` se acepta con cualquier ruta del mismo origen; el token queda ligado a `/api/mcp`.
+- Antes de conectar, Sentinel (el filtro de Muse) pide permiso para hablar con el dominio. Eso lo aprueba Alex, no un agente.
+- Si algo se rechaza en `/oauth/authorize`, queda en el log de Vercel como `[oauth/authorize] rechazo {…}`, sin secretos.
+
 ## Qué permisos dar
 
 | Permiso | Qué permite | Cuándo darlo |
