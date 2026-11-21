@@ -21,13 +21,34 @@ export interface Db extends Tx {
 const MIGRATIONS_DIR = path.join(process.cwd(), "supabase", "migrations");
 const DEV_STUB = path.join(process.cwd(), "supabase", "dev", "000_local_stub.sql");
 
+type SslOptions = { rejectUnauthorized: boolean; ca?: string } | undefined;
+let insecureWarned = false;
+
+/**
+ * TLS hacia Postgres. Local: sin TLS. Remoto: verificación activada.
+ *  - DATABASE_CA_CERT: certificado raíz en PEM (admite saltos de línea escapados); se usa como `ca`.
+ *  - DATABASE_SSL_INSECURE=1: desactiva la verificación (solo para salir del paso; avisa una vez).
+ */
+export function sslOptions(url: string, env: Record<string, string | undefined> = process.env): SslOptions {
+  if (/localhost|127\.0\.0\.1/.test(url)) return undefined;
+  if (env.DATABASE_SSL_INSECURE === "1") {
+    if (!insecureWarned) {
+      insecureWarned = true;
+      console.warn("[db] DATABASE_SSL_INSECURE=1: la conexión a Postgres NO verifica el certificado del servidor.");
+    }
+    return { rejectUnauthorized: false };
+  }
+  const ca = env.DATABASE_CA_CERT?.trim();
+  return ca ? { rejectUnauthorized: true, ca: ca.replace(/\\n/g, "\n") } : { rejectUnauthorized: true };
+}
+
 async function openPg(url: string): Promise<Db> {
   const pg = await import("pg");
   // date → 'AAAA-MM-DD' (sin zonas horarias de por medio); numeric e int8 → número.
   pg.types.setTypeParser(1082, (v: string) => v);
   pg.types.setTypeParser(1700, (v: string) => parseFloat(v));
   pg.types.setTypeParser(20, (v: string) => parseInt(v, 10));
-  const pool = new pg.Pool({ connectionString: url, max: 5, ssl: /localhost|127\.0\.0\.1/.test(url) ? undefined : { rejectUnauthorized: false } });
+  const pool = new pg.Pool({ connectionString: url, max: 5, ssl: sslOptions(url) });
   return {
     driver: "pg",
     query: async (sql, params) => (await pool.query(sql, params as unknown[])).rows,

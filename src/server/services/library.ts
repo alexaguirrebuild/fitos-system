@@ -12,6 +12,22 @@ import { Uuid, parseInput } from "./athlete";
 
 /* ───────────────────────── Tipos y lectura ───────────────────────── */
 
+export const EQUIPMENT_TYPES = ["libre", "multipower", "polea", "placas", "discos", "peso_corporal", "cardio"] as const;
+export type EquipmentType = (typeof EQUIPMENT_TYPES)[number];
+
+/** Tipo de equipo a partir del material antiguo (`equipment`). Misma tabla que la migración 0007. */
+export function equipmentTypeFrom(equipment: string | null | undefined): EquipmentType | null {
+  switch (equipment) {
+    case "barra": case "mancuernas": return "libre";
+    case "multipower": return "multipower";
+    case "polea": return "polea";
+    case "maquina": return "placas";
+    case "peso_corporal": return "peso_corporal";
+    case "bici": case "eliptica": case "cinta": case "ninguno": return "cardio";
+    default: return null;
+  }
+}
+
 export type Exercise = {
   id: string;
   /** Null = librería común. */
@@ -24,6 +40,7 @@ export type Exercise = {
   kind: "compuesto" | "aislamiento" | "cardio" | "core";
   movementPattern: string | null;
   equipment: string | null;
+  equipmentType: EquipmentType | null;
   stability: "unilateral_libre" | "bilateral_libre" | "unilateral_guiado" | "bilateral_guiado";
   resistanceProfile: "constante" | "variable";
   stretchBias: boolean;
@@ -38,7 +55,7 @@ export type Exercise = {
 };
 
 export const EXERCISE_COLS = `e.id, e.user_id as "userId", e.slug, e.name, e.aliases, e.primary_muscle as "primaryMuscle",
-  e.secondary_muscles as "secondaryMuscles", e.kind, e.movement_pattern as "movementPattern", e.equipment, e.stability,
+  e.secondary_muscles as "secondaryMuscles", e.kind, e.movement_pattern as "movementPattern", e.equipment, e.equipment_type as "equipmentType", e.stability,
   e.resistance_profile as "resistanceProfile", e.stretch_bias as "stretchBias", e.base_cost as "baseCost",
   e.load_step as "loadStep", e.per_side as "perSide", e.warmup_kind as "warmupKind", e.ankle_load as "ankleLoad",
   e.impact, e.video_urls as "videoUrls", e.cues`;
@@ -111,6 +128,7 @@ export const SearchExercisesInput = z.object({
   q: z.string().trim().max(120).optional().describe("Texto a buscar en nombre, slug y alias. Sin acentos ni mayúsculas"),
   muscle: z.string().trim().max(40).optional().describe("Id del grupo muscular (p. ej. «cuadriceps»). Sin texto, lista los de ese grupo"),
   ankleSafe: z.boolean().optional().describe("Excluye los ejercicios con carga alta de tobillo o con impacto"),
+  equipmentType: z.enum(EQUIPMENT_TYPES).optional().describe("Solo ejercicios de este tipo de equipo: libre, multipower, polea, placas, discos, peso_corporal, cardio"),
   limit: z.number().int().min(1).max(200).default(20).describe("Máximo de resultados"),
 });
 export type SearchExercisesInput = z.input<typeof SearchExercisesInput>;
@@ -118,6 +136,7 @@ export type SearchExercisesInput = z.input<typeof SearchExercisesInput>;
 export function searchIn(lib: Exercise[], i: z.output<typeof SearchExercisesInput>): Exercise[] {
   let pool = lib;
   if (i.ankleSafe) pool = pool.filter(ankleSafe);
+  if (i.equipmentType) pool = pool.filter((e) => e.equipmentType === i.equipmentType);
   if (i.muscle) {
     const m = normalizeText(i.muscle).replace(/ /g, "_");
     pool = pool.filter((e) => e.primaryMuscle === m || e.secondaryMuscles.includes(m));
@@ -196,6 +215,7 @@ export const CreateExerciseInput = z.object({
   kind: z.enum(["compuesto", "aislamiento", "cardio", "core"]).optional().describe("Tipo de ejercicio"),
   movementPattern: z.string().max(40).nullable().optional().describe("Patrón: dominante_rodilla, bisagra, empuje_h, empuje_v, traccion_h, traccion_v…"),
   equipment: z.string().max(40).nullable().optional().describe("Material: barra, mancuernas, maquina, polea, multipower, peso_corporal…"),
+  equipmentType: z.enum(EQUIPMENT_TYPES).optional().describe("Tipo de equipo. Si no viene, sale del material"),
   stability: z.enum(["unilateral_libre", "bilateral_libre", "unilateral_guiado", "bilateral_guiado"]).optional().describe("Estabilidad que exige"),
   resistanceProfile: z.enum(["constante", "variable"]).optional().describe("Perfil de resistencia"),
   baseCost: z.number().min(0.5).max(2).optional().describe("Coste de fatiga base: 1,5 sentadilla y peso muerto; 1,2 press banca; 1,0 el resto"),
@@ -221,14 +241,14 @@ export async function createExerciseTx(tx: Tx, i: z.output<typeof CreateExercise
   }
   const [row] = await tx.query<{ id: string }>(
     `insert into fit.exercises (user_id, slug, name, aliases, primary_muscle, secondary_muscles, kind, movement_pattern, equipment,
-       stability, resistance_profile, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, cues)
+       stability, resistance_profile, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, cues, equipment_type)
      values (auth.uid(), $1, $2, $3::text[], $4, $5::text[], coalesce($6, 'aislamiento'), $7, $8, coalesce($9, 'bilateral_guiado'),
        coalesce($10, 'constante'), coalesce($11, 1.0), coalesce($12, 2.5), coalesce($13, false), coalesce($14, 'reducido'),
-       coalesce($15, 'ninguna'), coalesce($16, false), $17)
+       coalesce($15, 'ninguna'), coalesce($16, false), $17, $18)
      returning id`,
     [slug, i.name, i.aliases ?? [], i.primaryMuscle ?? null, i.secondaryMuscles ?? [], i.kind ?? null, i.movementPattern ?? null,
       i.equipment ?? null, i.stability ?? null, i.resistanceProfile ?? null, i.baseCost ?? null, i.loadStep ?? null, i.perSide ?? null,
-      i.warmupKind ?? null, i.ankleLoad ?? null, i.impact ?? null, i.cues ?? null],
+      i.warmupKind ?? null, i.ankleLoad ?? null, i.impact ?? null, i.cues ?? null, i.equipmentType ?? equipmentTypeFrom(i.equipment)],
   );
   return getExerciseTx(tx, row.id);
 }
@@ -264,9 +284,9 @@ export async function addAliasTx(tx: Tx, i: z.output<typeof AddAliasInput>): Pro
     else {
       const [copy] = await tx.query<{ id: string }>(
         `insert into fit.exercises (user_id, slug, name, aliases, primary_muscle, secondary_muscles, kind, movement_pattern, equipment,
-           stability, resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues)
+           stability, resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues, equipment_type)
          select auth.uid(), slug, name, aliases, primary_muscle, secondary_muscles, kind, movement_pattern, equipment,
-           stability, resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues
+           stability, resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues, equipment_type
          from fit.exercises where id = $1 returning id`, [ex.id]);
       for (const table of ["prescriptions", "workout_sets", "workout_exercises", "videos"])
         await tx.query(`update fit.${table} set exercise_id = $1 where exercise_id = $2`, [copy.id, ex.id]);
@@ -387,5 +407,61 @@ export async function setVolumeTarget(userId: string, input: z.input<typeof SetV
          priority = coalesce(excluded.priority, fit.athlete_volume_targets.priority), updated_at = now()`,
       [i.muscleId, i.mev, i.mrv, i.priority ?? null]);
     return (await listMuscleGroupsTx(tx)).find((m) => m.id === i.muscleId)!;
+  }, db);
+}
+
+/* ───────────────────────── Nombres del histórico sin enlazar ───────────────────────── */
+
+export const ListUnlinkedNamesInput = z.object({
+  limit: z.number().int().min(1).max(200).default(50).describe("Máximo de nombres, de más a menos series"),
+});
+
+export type UnlinkedName = { rawName: string; sets: number; lastDate: string | null; candidates: { id: string; slug: string; name: string }[] };
+
+/** Nombres en texto libre de series sin ejercicio, agrupados, con hasta 3 candidatos de la librería. */
+export async function listUnlinkedNames(userId: string, input?: z.input<typeof ListUnlinkedNamesInput>, db?: Db): Promise<UnlinkedName[]> {
+  const i = parseInput(ListUnlinkedNamesInput, input ?? {});
+  return withUser(userId, async (tx) => {
+    const rows = await tx.query<{ rawName: string; sets: number; lastDate: string | null }>(
+      `select s.exercise_name_raw as "rawName", count(*)::int as sets, max(w.date) as "lastDate"
+       from fit.workout_sets s join fit.workouts w on w.id = s.workout_id
+       where s.exercise_id is null and s.exercise_name_raw is not null and btrim(s.exercise_name_raw) <> ''
+       group by s.exercise_name_raw order by count(*) desc, s.exercise_name_raw limit $1`, [i.limit]);
+    const lib = await loadLibraryTx(tx);
+    return rows.map((r) => ({
+      ...r,
+      candidates: resolveIn(lib, r.rawName).candidates.slice(0, 3).map((e) => ({ id: e.id, slug: e.slug, name: e.name })),
+    }));
+  }, db);
+}
+
+export const LinkRawNameInput = z.object({
+  rawName: z.string().min(1).max(200).describe("El nombre en texto libre, tal como sale en list_unlinked_exercise_names"),
+  exerciseId: Uuid.describe("Id del ejercicio al que se enlazan esas series"),
+});
+
+export type LinkRawNameResult = { linked: number; exercise: Exercise; aliasAdded: boolean; cloned: boolean };
+
+/**
+ * Enlaza todas las series con ese texto al ejercicio y guarda el texto como alias, para que no vuelva a quedar suelto.
+ * No recalcula e1RM: sus métricas no dependen del ejercicio.
+ */
+export async function linkRawName(userId: string, input: z.input<typeof LinkRawNameInput>, db?: Db): Promise<LinkRawNameResult> {
+  const i = parseInput(LinkRawNameInput, input);
+  return withUser(userId, async (tx) => {
+    const [{ n }] = await tx.query<{ n: number }>(
+      "select count(*)::int as n from fit.workout_sets where exercise_id is null and exercise_name_raw = $1", [i.rawName]);
+    if (!n) throw notFound(`Ninguna serie suelta con el nombre «${i.rawName}»`);
+    const before = await getExerciseTx(tx, i.exerciseId);
+    let aliasAdded = false;
+    let cloned = false;
+    let ex = before;
+    const alias = i.rawName.trim();
+    if (alias.length >= 2 && !labels(before).some((l) => normalizeText(l) === normalizeText(alias))) {
+      const r = await addAliasTx(tx, { exerciseId: i.exerciseId, alias });
+      ex = r.exercise; cloned = r.cloned; aliasAdded = true;
+    }
+    await tx.query("update fit.workout_sets set exercise_id = $1 where exercise_id is null and exercise_name_raw = $2", [ex.id, i.rawName]);
+    return { linked: n, exercise: ex, aliasAdded, cloned };
   }, db);
 }

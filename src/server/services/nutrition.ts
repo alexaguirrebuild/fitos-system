@@ -22,6 +22,9 @@ export const MEALS = ["desayuno", "comida", "cena", "pre", "intra", "post", "sna
 export type Meal = (typeof MEALS)[number];
 export const DAY_TYPES = ["on", "off"] as const;
 export type DayType = (typeof DAY_TYPES)[number];
+/** Lo que se puede forzar en un día: On, Off o libre (se registra, no se juzga). */
+export type DayKind = DayType | "libre";
+export const FREE_DAY_NOTE = "Día libre: se registra, no se juzga.";
 export type Macros = { kcal: number; proteinG: number; carbsG: number; fatG: number };
 export type NutritionPhase = "calibracion" | "deficit" | "mantenimiento" | "superavit";
 
@@ -401,7 +404,7 @@ function plannedOnDays(plan: PlanInfo | null): number | null {
 
 export type DayTypeInfo = {
   date: string;
-  dayType: DayType;
+  dayType: DayKind;
   forced: boolean;
   /** true si no se ha podido determinar y se supone. */
   assumed: boolean;
@@ -409,9 +412,13 @@ export type DayTypeInfo = {
 };
 
 export async function dayTypeTx(tx: Tx, date: string, today: string): Promise<DayTypeInfo> {
-  const forced = await tx.query<{ day_type: DayType }>("select day_type from fit.nutrition_days where date = $1::date and forced", [date]);
+  const forced = await tx.query<{ day_type: DayKind }>("select day_type from fit.nutrition_days where date = $1::date and forced", [date]);
   if (forced[0]) return { date, dayType: forced[0].day_type, forced: true, assumed: false, basis: "forzado" };
+  return deducedDayTypeTx(tx, date, today);
+}
 
+/** On u Off deducido de la sesión o del plan, sin mirar lo que se haya forzado. */
+async function deducedDayTypeTx(tx: Tx, date: string, today: string): Promise<DayTypeInfo & { dayType: DayType }> {
   const ws = await tx.query<{ status: string }>(
     `select w.status from fit.workouts w left join fit.session_templates st on st.id = w.session_template_id
       where w.date = $1::date and coalesce(st.is_cardio, false) = false and coalesce(st.is_rest, false) = false`,
@@ -454,7 +461,7 @@ export async function getDayType(userId: string, input: GetDayTypeInput = {}, db
 
 export const SetDayTypeInput = z.object({
   date: IsoDate.optional().describe("Día (AAAA-MM-DD). Por defecto, hoy."),
-  dayType: z.enum(["on", "off", "auto"]).describe("on u off para forzarlo; auto quita el forzado y vuelve a deducirse."),
+  dayType: z.enum(["on", "off", "libre", "auto"]).describe("on, off o libre para forzarlo (libre: se registra la comida pero no se juzga ni se le pone objetivo); auto quita el forzado y vuelve a deducirse."),
 });
 export type SetDayTypeInput = z.input<typeof SetDayTypeInput>;
 
@@ -513,12 +520,15 @@ async function dayLogsTx(tx: Tx, date: string): Promise<{ logs: FoodLog[]; total
   return { logs, totals: logs.reduce((s, l) => addMacros(s, logMacros(l)), ZERO) };
 }
 
-export type DayTotals = { date: string; dayType: DayType; target: Macros | null; totals: Macros; remaining: Macros | null };
+/** `dayType` es siempre On u Off (en un día libre, el que tocaría); `free` marca el día libre, que no tiene objetivo. */
+export type DayTotals = { date: string; dayType: DayType; free: boolean; target: Macros | null; totals: Macros; remaining: Macros | null };
 
 async function dayTotalsTx(tx: Tx, date: string, today: string): Promise<DayTotals> {
   const [{ totals }, dt, target] = [await dayLogsTx(tx, date), await dayTypeTx(tx, date, today), await currentTargetTx(tx, date)];
-  const t = target ? target[dt.dayType] : null;
-  return { date, dayType: dt.dayType, target: t, totals, remaining: t ? subMacros(t, totals) : null };
+  const free = dt.dayType === "libre";
+  const base = dt.dayType === "libre" ? (await deducedDayTypeTx(tx, date, today)).dayType : dt.dayType;
+  const t = target && !free ? target[base] : null;
+  return { date, dayType: base, free, target: t, totals, remaining: t ? subMacros(t, totals) : null };
 }
 
 /** Minutos desde el corte, dentro de la ventana corte → hora de levantarse (o 15 h si no hay). */
@@ -538,7 +548,11 @@ export type CaffeineStatus = { cutoff: string | null; maxMg: number | null; toda
 
 export type NutritionDay = {
   date: string;
+  /** On u Off (en un día libre, el que tocaría por la sesión o el plan). */
   dayType: DayType;
+  /** Día libre: se registra, no se juzga. Sin objetivo ni restante. */
+  dayFree: boolean;
+  note: string | null;
   dayTypeForced: boolean;
   dayTypeAssumed: boolean;
   phase: NutritionPhase | null;
@@ -573,9 +587,11 @@ export async function getNutritionDay(userId: string, input: GetNutritionDayInpu
     const today = todayIn(a.timezone);
     const date = i.date ?? today;
     const dt = await dayTypeTx(tx, date, today);
+    const free = dt.dayType === "libre";
+    const base: DayType = dt.dayType === "libre" ? (await deducedDayTypeTx(tx, date, today)).dayType : dt.dayType;
     const target = await currentTargetTx(tx, date);
     const { logs, totals } = await dayLogsTx(tx, date);
-    const t = target ? target[dt.dayType] : null;
+    const t = target && !free ? target[base] : null;
     const byMeal: NutritionDay["byMeal"] = {};
     for (const l of logs) {
       const prev = byMeal[l.meal] ?? { ...ZERO, items: 0 };
@@ -583,11 +599,12 @@ export async function getNutritionDay(userId: string, input: GetNutritionDayInpu
     }
     const act = await tx.query<{ steps: number | null }>("select steps from fit.daily_activity where date = $1::date", [date]);
     return {
-      date, dayType: dt.dayType, dayTypeForced: dt.forced, dayTypeAssumed: dt.assumed, phase: target?.phase ?? null, target: t, logs, totals,
+      date, dayType: base, dayFree: free, note: free ? FREE_DAY_NOTE : null, dayTypeForced: dt.forced, dayTypeAssumed: dt.assumed,
+      phase: target?.phase ?? null, target: t, logs, totals,
       remaining: t ? subMacros(t, totals) : null, byMeal,
       proteinPct: t && t.proteinG > 0 ? r0((totals.proteinG / t.proteinG) * 100) : null,
       caffeine: await caffeineStatusTx(tx, a, date),
-      steps: { goal: stepsGoal(dt.dayType === "on", a.steps_goal, a.steps_off_extra), done: act[0]?.steps ?? null },
+      steps: { goal: stepsGoal(base === "on", a.steps_goal, a.steps_off_extra), done: act[0]?.steps ?? null },
     };
   }, db);
 }
@@ -1102,6 +1119,10 @@ export type WeeklyNutritionReview = {
     adherencePct: number | null;
     adherentDays: number;
     daysCounted: number;
+    /** Días libres de la semana: no cuentan para la adherencia. */
+    freeDays: number;
+    /** Media de kcal de los días con registros (los libres incluidos). */
+    avgKcal: number | null;
     stepsAvg: number | null;
     stepsGoal: number;
     readinessAvg: number | null;
@@ -1142,7 +1163,7 @@ export async function weeklyNutritionReview(userId: string, input: WeeklyNutriti
     const target = targets[0] ?? null;
     const eaten = new Map((await tx.query<{ date: string; kcal: number; protein: number }>(
       "select date, sum(kcal) as kcal, sum(protein_g) as protein from fit.food_logs where date between $1::date and $2::date group by date", [ws, we])).map((r) => [r.date, r]));
-    const forced = new Map((await tx.query<{ date: string; day_type: DayType }>(
+    const forced = new Map((await tx.query<{ date: string; day_type: DayKind }>(
       "select date, day_type from fit.nutrition_days where forced and date between $1::date and $2::date", [ws, we])).map((r) => [r.date, r.day_type]));
     const trained = new Set((await tx.query<{ date: string }>(
       `select distinct w.date from fit.workouts w left join fit.session_templates st on st.id = w.session_template_id
@@ -1150,15 +1171,20 @@ export async function weeklyNutritionReview(userId: string, input: WeeklyNutriti
           and coalesce(st.is_cardio, false) = false and coalesce(st.is_rest, false) = false`, [ws, we])).map((r) => r.date));
     let adherentDays = 0;
     let daysCounted = 0;
+    let freeDays = 0;
     for (let d = ws; d <= we && d <= today; d = addDays(d, 1)) {
       const t = targets.find((x) => x.validFrom <= d);
       if (!t) continue;
+      const kind = forced.get(d);
+      if (kind === "libre") { freeDays++; continue; } // día libre: se registra, no se juzga
       daysCounted++;
-      const goal = t[forced.get(d) ?? (trained.has(d) ? "on" : "off")];
+      const goal = t[kind ?? (trained.has(d) ? "on" : "off")];
       const e = eaten.get(d);
       if (e && Math.abs(e.kcal - goal.kcal) <= goal.kcal * 0.1 && e.protein >= goal.proteinG * 0.9) adherentDays++;
     }
     const adherencePct = daysCounted ? r1((adherentDays / daysCounted) * 100) : null;
+    const logged = [...eaten.values()].filter((e) => e.kcal > 0);
+    const avgKcal = logged.length ? r0(logged.reduce((sum, e) => sum + e.kcal, 0) / logged.length) : null;
 
     const avgs = (await tx.query<{ steps: number | null; readiness: number | null; sessions: number }>(
       `select
@@ -1201,7 +1227,7 @@ export async function weeklyNutritionReview(userId: string, input: WeeklyNutriti
 
     const plan = await planInfoTx(tx, today);
     const data: WeeklyNutritionReview["data"] = {
-      phase: target?.phase ?? null, weightAvgKg, weighIns: inWeek.length, ratePct, targetPct, waistCm: waist.now, waistDeltaCm, adherencePct, adherentDays, daysCounted,
+      phase: target?.phase ?? null, weightAvgKg, weighIns: inWeek.length, ratePct, targetPct, waistCm: waist.now, waistDeltaCm, adherencePct, adherentDays, daysCounted, freeDays, avgKcal,
       stepsAvg: avgs.steps == null ? null : r0(avgs.steps), stepsGoal: a.steps_goal, readinessAvg: avgs.readiness == null ? null : r1(avgs.readiness),
       performance, performancePct, exercisesCompared: changes.length, sessionsDone: avgs.sessions, sessionsPlanned: plannedOnDays(plan), engineDecision,
     };

@@ -131,9 +131,28 @@ describe("onboarding", () => {
   it("recién creado: detecta todo lo que falta y la contradicción de la altura", async () => {
     const s = await getOnboardingStatus(user, undefined, db);
     expect(s.complete).toBe(false);
-    expect(s.missing.map((m) => m.field)).toEqual(["heightCm", "birthDate", "weightKg", "waistCm", "hrRest", "bedtime", "ankle", "program", "adhdMedication", "weeklyFoodBudgetEur"]);
+    expect(s.missing.map((m) => m.field)).toEqual(["heightCm", "birthDate", "weightKg", "waistCm", "hrRest", "bedtime", "program", "adhdMedication", "weeklyFoodBudgetEur"]);
     expect(s.missing.every((m) => m.question.length > 5 && m.why.length > 5)).toBe(true);
     expect(s.contradictions).toEqual(["Altura: 174 cm en la hoja de junio, 164 cm en otra ficha. Confirma cuál."]);
+    // El tobillo ya no bloquea: sale como pregunta opcional.
+    expect(s.optional).toEqual([expect.objectContaining({ field: "ankle", question: "¿Alguna lesión o molestia ahora?" })]);
+    expect(s.intakeMissing.length).toBeGreaterThan(15);
+  });
+
+  it("la ficha de ingreso se guarda en onboarding.intake, se va sumando y quita las preguntas contestadas", async () => {
+    const before = (await getOnboardingStatus(user, undefined, db)).intakeMissing.map((q) => q.field);
+    expect(before).toEqual(expect.arrayContaining(["yearsTraining", "allergies", "bloodwork"]));
+    expect(before).not.toContain("notes");
+    await saveOnboarding(user, { intake: { yearsTraining: "5", allergies: ["lactosa"], bloodwork: { recent: true, date: "2026-10-01" } } }, db);
+    await saveOnboarding(user, { intake: { occupation: "Estudiante", medication: "" } }, db);
+    const [{ intake }] = await asSystem((tx) => tx.query<{ intake: Record<string, unknown> }>("select onboarding -> 'intake' as intake from fit.athletes where id = $1", [user]), db);
+    expect(intake).toMatchObject({ yearsTraining: "5", allergies: ["lactosa"], occupation: "Estudiante", bloodwork: { recent: true, date: "2026-10-01" } });
+    const after = (await getOnboardingStatus(user, undefined, db)).intakeMissing;
+    expect(after.map((q) => q.field)).not.toContain("yearsTraining");
+    expect(after.map((q) => q.field)).not.toContain("allergies");
+    expect(after.map((q) => q.field)).not.toContain("bloodwork");
+    expect(after.map((q) => q.field)).toContain("medication"); // vacío = sin contestar
+    expect(after.every((q) => q.question.endsWith("?"))).toBe(true);
   });
 
   it("la altura sin confirmar sigue contando como pendiente", async () => {
@@ -177,7 +196,7 @@ describe("onboarding", () => {
     await activateProgram(user, { slug: "mini", startDate: "2026-11-23" }, db, { template });
     expect((await getOnboardingStatus(user, undefined, db)).complete).toBe(true);
     const r = await saveOnboarding(user, {}, db);
-    expect(r.status).toEqual({ complete: true, missing: [], contradictions: [] });
+    expect(r.status).toMatchObject({ complete: true, missing: [], contradictions: [] });
     expect(r.athlete.onboardedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });

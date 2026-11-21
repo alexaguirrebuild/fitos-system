@@ -4,9 +4,9 @@ import { isHardSet, SESSION_CAP } from "@/engine";
 import { AppError, invalid } from "@/server/errors";
 import {
   AddAliasInput, AddExerciseToWorkoutInput, CreateExerciseInput, DeleteSetInput, FindAlternativesInput, FinishWorkoutInput, GetExerciseHistoryInput,
-  ListWorkoutsInput, LogSetInput, LogSorenessInput, SearchExercisesInput, StartWorkoutInput, SwapExerciseInput, UpdateSetInput, Uuid,
+  LinkRawNameInput, ListUnlinkedNamesInput, ListWorkoutsInput, LogSetInput, LogSorenessInput, SearchExercisesInput, StartWorkoutInput, SwapExerciseInput, UpdateSetInput, Uuid,
   addAlias, addExerciseToWorkout, createExercise, deleteSet, findAlternatives, finishWorkout, getExerciseHistory, getNextSession, getWorkoutView,
-  listWorkouts, logSet, logSoreness, searchExercises, startWorkout, swapExercise, updateSet,
+  linkRawName, listUnlinkedNames, listWorkouts, logSet, logSoreness, searchExercises, startWorkout, swapExercise, updateSet,
   type Exercise, type ExerciseBlock, type NextSet, type SetView, type WorkoutView,
 } from "@/server/services";
 import { defineTool, type AnyTool } from "./registry";
@@ -16,12 +16,12 @@ import { AMBIGUOUS_HINT, exerciseIdOf, lean, limitField, n1, num, r1, rxText, se
 
 const isWorking = (s: SetView) => s.setType !== "aproximacion" && s.kg != null && s.reps != null && s.reps > 0;
 const asLog = (s: { kg: number | null; reps: number | null; rir: number | null }) => ({ kg: s.kg ?? 0, reps: s.reps ?? 0, rir: s.rir });
-const compactSet = (s: SetView) => lean({ id: s.id, n: s.setIndex, type: s.setType === "normal" ? null : s.setType, kg: s.kg, reps: s.reps, rir: s.rir, e1rm: n1(s.e1rm), note: s.note });
+const compactSet = (s: SetView) => lean({ id: s.id, n: s.setIndex, type: s.setType === "normal" ? null : s.setType, equipment: s.equipmentType, kg: s.kg, reps: s.reps, rir: s.rir, e1rm: n1(s.e1rm), note: s.note });
 const restText = (sec: number) => (sec >= 60 ? `${num(sec / 60)} min` : `${sec} s`);
 const nextText = (n: NextSet) =>
   `${n.exerciseName}, serie ${n.setNumber}${n.kg != null ? `: ${num(n.kg)} kg` : ""}${n.reps != null ? ` × ${n.reps}` : ""}${n.rir != null ? `, RIR ${num(n.rir)}` : ""}. Descanso: ${restText(n.restSeconds)}`;
 const compactExercise = (e: Exercise) => lean({
-  id: e.id, name: e.name, muscle: e.primaryMuscle, kind: e.kind, equipment: e.equipment, ankleLoad: e.ankleLoad === "ninguna" ? null : e.ankleLoad,
+  id: e.id, name: e.name, muscle: e.primaryMuscle, kind: e.kind, equipment: e.equipment, equipmentType: e.equipmentType, ankleLoad: e.ankleLoad === "ninguna" ? null : e.ankleLoad,
   aliases: e.aliases.slice(0, 4),
 });
 
@@ -104,7 +104,7 @@ const getExerciseHistoryTool = defineTool({
       best: h.best ? { e1rm: r1(h.best.e1rm), date: h.best.date } : null,
       trend: h.trend,
       sessions: h.sessions.map((s) => lean({ date: s.date, workoutId: s.workoutId, sets: s.sets.map(setText).join(", "), e1rm: n1(s.e1rm), confidence: s.confidence,
-        gear: [s.kneeSleeves && "rodilleras", s.belt && "cinturón"].filter(Boolean).join(", ") || null })),
+        equipment: s.equipmentType, gear: [s.kneeSleeves && "rodilleras", s.belt && "cinturón"].filter(Boolean).join(", ") || null })),
     };
   },
 });
@@ -333,8 +333,35 @@ const addAliasTool = defineTool({
   },
 });
 
+const listUnlinkedNamesTool = defineTool({
+  name: "list_unlinked_exercise_names",
+  title: "Nombres de ejercicio sin enlazar",
+  description: "Úsala para limpiar el histórico: devuelve los nombres en texto libre de series que no están enlazadas a ningún ejercicio de la librería, con el número de series, la última fecha y hasta 3 candidatos. Después, con el atleta, enlaza cada uno con link_exercise_name.",
+  scope: "mcp:read",
+  readOnly: true,
+  input: ListUnlinkedNamesInput,
+  handler: async (ctx, args) => {
+    const names = await listUnlinkedNames(ctx.userId, args);
+    return { total: names.length, names: names.map((n) => lean({ rawName: n.rawName, sets: n.sets, lastDate: n.lastDate, candidates: n.candidates.map((c) => ({ id: c.id, name: c.name })) })) };
+  },
+});
+
+const linkExerciseNameTool = defineTool({
+  name: "link_exercise_name",
+  title: "Enlazar un nombre del histórico a un ejercicio",
+  description: "Úsala cuando el atleta confirme a qué ejercicio corresponde un nombre suelto del histórico (sale de list_unlinked_exercise_names): enlaza todas las series con ese texto al ejercicio y guarda el texto como alias. Confirma antes el ejercicio con el atleta.",
+  scope: "mcp:plan",
+  readOnly: false,
+  idempotent: true,
+  input: LinkRawNameInput,
+  handler: async (ctx, args) => {
+    const r = await linkRawName(ctx.userId, args);
+    return { summary: `${r.linked} series de «${args.rawName}» enlazadas a ${r.exercise.name}.`, linked: r.linked, exercise: compactExercise(r.exercise), aliasAdded: r.aliasAdded, cloned: r.cloned };
+  },
+});
+
 export const trainingTools: AnyTool[] = [
   getWorkoutTool, listWorkoutsTool, getExerciseHistoryTool, searchExercisesTool, findAlternativesTool,
   startWorkoutTool, logSetTool, updateSetTool, deleteSetTool, addExerciseTool, swapExerciseTool, finishWorkoutTool, logSorenessTool,
-  createExerciseTool, addAliasTool,
+  createExerciseTool, addAliasTool, listUnlinkedNamesTool, linkExerciseNameTool,
 ];

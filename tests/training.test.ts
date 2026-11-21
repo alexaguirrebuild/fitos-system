@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { asSystem, openMemoryDb, withUser, type Db } from "@/db/client";
 import { AppError } from "@/server/errors";
 import { getAnkleStatus, logInjuryPain } from "@/server/services/athlete";
-import { addAlias, findAlternatives, resolveExercise, searchExercises } from "@/server/services/library";
+import { addAlias, equipmentTypeFrom, findAlternatives, linkRawName, listUnlinkedNames, resolveExercise, searchExercises } from "@/server/services/library";
 import { activateProgram, advanceMicrocycle, getActivePlan, getNextSession, listProgramTemplates, setDeload } from "@/server/services/plan";
 import {
   addExerciseToWorkout, deleteSet, finishWorkout, getExerciseHistory, getWorkoutView, logSet, logSoreness, startWorkout, swapExercise, updateSet,
@@ -422,5 +422,67 @@ describe("anotaciones automáticas del motor", () => {
     const mine = await startWorkout(b, { date: "2026-11-11" }, db);
     await expect(getWorkoutView(a, mine.workout.id, db)).rejects.toMatchObject({ code: "no_encontrado" });
     await expect(logSet(a, { workoutId: mine.workout.id, exercise: "curl-biceps", kg: 10, reps: 10 }, db)).rejects.toMatchObject({ code: "no_encontrado" });
+  });
+});
+
+describe("tipo de equipo y nombres del histórico", () => {
+  let u: string;
+  beforeAll(async () => {
+    [{ id: u }] = await asSystem((tx) => tx.query<{ id: string }>("insert into fit.athletes (email) values ('equipo@test.local') returning id"), db);
+    // El catálogo de prueba se inserta a mano: se rellena el tipo igual que hacen la migración y el seed.
+    await asSystem(async (tx) => {
+      for (const e of await tx.query<{ id: string; equipment: string }>("select id, equipment from fit.exercises where equipment_type is null"))
+        await tx.query("update fit.exercises set equipment_type = $1 where id = $2", [equipmentTypeFrom(e.equipment), e.id]);
+    }, db);
+  });
+
+  it("filtra la búsqueda por tipo de equipo y deriva el tipo del material", async () => {
+    expect(equipmentTypeFrom("barra")).toBe("libre");
+    expect(equipmentTypeFrom("maquina")).toBe("placas");
+    expect(equipmentTypeFrom("bici")).toBe("cardio");
+    expect((await searchExercises(u, { equipmentType: "polea" }, db)).map((e) => e.slug)).toEqual(["extension-triceps"]);
+    expect((await searchExercises(u, { equipmentType: "placas" }, db)).map((e) => [e.slug, e.equipmentType])).toEqual([["prensa", "placas"]]);
+    expect((await searchExercises(u, { equipmentType: "libre", muscle: "pectoral" }, db)).map((e) => e.slug).sort()).toEqual(["press-banca", "press-banca-inclinado"]);
+  });
+
+  it("la serie guarda el equipo del día (por defecto, el del ejercicio) y la sesión y el historial lo devuelven", async () => {
+    const v = await startWorkout(u, { date: "2026-12-01" }, db);
+    const multi = ok(await logSet(u, { workoutId: v.workout.id, exercise: "press-banca", kg: 80, reps: 8, rir: 2, equipment: "multipower" }, db));
+    expect(multi.set.equipmentType).toBe("multipower");
+    const def = ok(await logSet(u, { workoutId: v.workout.id, exercise: "extension-triceps", kg: 20, reps: 10, rir: 2 }, db));
+    expect(def.set.equipmentType).toBe("polea"); // el del ejercicio
+    const fixed = await updateSet(u, { setId: multi.set.id, equipment: "libre" }, db);
+    expect(fixed.equipmentType).toBe("libre");
+    const view = await getWorkoutView(u, v.workout.id, db);
+    expect(block(view, "press-banca").sets[0].equipmentType).toBe("libre");
+    expect(block(view, "press-banca").exercise.equipmentType).toBe("libre");
+    await finishWorkout(u, { workoutId: v.workout.id, srpe: 7, durationMin: 60 }, db);
+    const h = await getExerciseHistory(u, { exercise: "press-banca" }, db);
+    expect(h.sessions[0].equipmentType).toBe("libre");
+    expect(h.exercise.equipmentType).toBe("libre");
+    expect((await updateSet(u, { setId: multi.set.id, equipment: null }, db)).equipmentType).toBeNull();
+  });
+
+  it("lista los nombres sueltos y los enlaza al ejercicio, guardando el alias", async () => {
+    await withUser(u, async (tx) => {
+      const [w] = await tx.query<{ id: string }>("insert into fit.workouts (date, name, status) values ('2026-06-01', 'Vieja', 'hecha') returning id");
+      await tx.query(
+        `insert into fit.workout_sets (workout_id, exercise_name_raw, exercise_position, set_index, kg, reps) values
+           ($1, 'pres banca plano', 1, 1, 60, 8), ($1, 'pres banca plano', 1, 2, 60, 7), ($1, 'cosa rara', 2, 1, 10, 10)`, [w.id]);
+    }, db);
+    const list = await listUnlinkedNames(u, undefined, db);
+    expect(list.map((n) => [n.rawName, n.sets, n.lastDate])).toEqual([["pres banca plano", 2, "2026-06-01"], ["cosa rara", 1, "2026-06-01"]]);
+    expect(list[0].candidates.length).toBeGreaterThan(0);
+    expect(list[0].candidates.length).toBeLessThanOrEqual(3);
+    expect(list[0].candidates.map((c) => c.slug)).toContain("press-banca");
+    expect(await listUnlinkedNames(u, { limit: 1 }, db)).toHaveLength(1);
+
+    const press = (await searchExercises(u, { q: "press banca" }, db)).find((e) => e.slug === "press-banca")!;
+    const r = await linkRawName(u, { rawName: "pres banca plano", exerciseId: press.id }, db);
+    expect(r).toMatchObject({ linked: 2, aliasAdded: true });
+    expect(r.exercise.aliases).toContain("pres banca plano");
+    expect((await listUnlinkedNames(u, undefined, db)).map((n) => n.rawName)).toEqual(["cosa rara"]);
+    expect((await resolveExercise(u, "pres banca plano", db)).match?.id).toBe(r.exercise.id);
+    await expect(linkRawName(u, { rawName: "pres banca plano", exerciseId: press.id }, db)).rejects.toMatchObject({ code: "no_encontrado" });
   });
 });

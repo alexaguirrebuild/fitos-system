@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { asSystem, openMemoryDb, withUser, type Db } from "@/db/client";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { asSystem, openMemoryDb, sslOptions, withUser, type Db } from "@/db/client";
 
 let db: Db;
 let a: string;
@@ -77,5 +77,31 @@ describe("migraciones y RLS (Postgres real en PGlite)", () => {
     await expect(withUser(a, (tx) => tx.query("select * from fit.no_existe"), db)).rejects.toThrow();
     const who = await db.query<{ current_user: string }>("select current_user");
     expect(who[0].current_user).not.toBe("authenticated");
+  });
+});
+
+describe("TLS de Postgres (sslOptions)", () => {
+  const remote = "postgresql://u:p@db.ejemplo.supabase.co:5432/postgres";
+
+  it("local sin TLS; remoto verificando el certificado por defecto", () => {
+    expect(sslOptions("postgresql://u:p@localhost:5432/x", {})).toBeUndefined();
+    expect(sslOptions("postgresql://u:p@127.0.0.1:5432/x", {})).toBeUndefined();
+    expect(sslOptions(remote, {})).toEqual({ rejectUnauthorized: true });
+  });
+
+  it("DATABASE_CA_CERT se usa como ca, con los \\n escapados o con saltos reales", () => {
+    const pem = "-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----";
+    expect(sslOptions(remote, { DATABASE_CA_CERT: pem.replace(/\n/g, "\\n") })).toEqual({ rejectUnauthorized: true, ca: pem });
+    expect(sslOptions(remote, { DATABASE_CA_CERT: pem })).toEqual({ rejectUnauthorized: true, ca: pem });
+  });
+
+  it("solo DATABASE_SSL_INSECURE=1 desactiva la verificación, y avisa una sola vez", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(sslOptions(remote, { DATABASE_SSL_INSECURE: "true" })).toEqual({ rejectUnauthorized: true });
+    expect(warn).not.toHaveBeenCalled();
+    expect(sslOptions(remote, { DATABASE_SSL_INSECURE: "1" })).toEqual({ rejectUnauthorized: false });
+    expect(sslOptions(remote, { DATABASE_SSL_INSECURE: "1" })).toEqual({ rejectUnauthorized: false });
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });

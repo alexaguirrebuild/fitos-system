@@ -156,6 +156,11 @@ export const BodyMetricsInput = z.object({
   armCm: cm(15, 70, "Brazo"),
   thighCm: cm(30, 110, "Muslo"),
   calfCm: cm(20, 70, "Gemelo"),
+  forearmCm: cm(15, 50, "Antebrazo"),
+  shoulderWidthCm: cm(30, 160, "Ancho de hombros (biacromial o perímetro de hombros)"),
+  skeletalMuscleKg: z.number().min(10).max(80).optional().describe("Masa muscular esquelética en kg (p. ej. de la báscula InBody)"),
+  bfPct: z.number().min(2).max(60).optional().describe("% graso medido (InBody, DEXA, pliegues). Si llega, no se recalcula por perímetros"),
+  bfMethod: z.string().trim().min(1).max(40).optional().describe("Cómo se midió el % graso: inbody, dexa, pliegues…"),
   skinfolds: z.record(z.string(), z.number().min(0).max(100)).optional()
     .describe("Pliegues en mm: abdominal, suprailiaco, tricipital, subescapular, muslo, pantorrilla"),
   note: z.string().max(500).optional().describe("Nota libre"),
@@ -173,6 +178,9 @@ export type BodyMetrics = {
   armCm: number | null;
   thighCm: number | null;
   calfCm: number | null;
+  forearmCm: number | null;
+  shoulderWidthCm: number | null;
+  skeletalMuscleKg: number | null;
   skinfolds: Record<string, number> | null;
   bfPct: number | null;
   bfMethod: string | null;
@@ -181,7 +189,7 @@ export type BodyMetrics = {
 
 export const BODY_METRICS_COLS = `id, date, weight_kg as "weightKg", waist_cm as "waistCm", neck_cm as "neckCm",
   hip_cm as "hipCm", chest_cm as "chestCm", arm_cm as "armCm", thigh_cm as "thighCm", calf_cm as "calfCm",
-  skinfolds, bf_pct as "bfPct", bf_method as "bfMethod", note`;
+  forearm_cm as "forearmCm", shoulder_width_cm as "shoulderWidthCm", skeletal_muscle_kg as "skeletalMuscleKg", skinfolds, bf_pct as "bfPct", bf_method as "bfMethod", note`;
 
 export type BodyMetricsResult = BodyMetrics & {
   leanKg: number | null;
@@ -195,23 +203,38 @@ export type BodyMetricsResult = BodyMetrics & {
 export async function upsertBodyMetricsTx(tx: Tx, input: z.output<typeof BodyMetricsInput>): Promise<BodyMetricsResult> {
   const date = await dateOrToday(tx, input.date);
   const n = (v: number | undefined) => v ?? null;
-  const m = ["weight_kg", "waist_cm", "neck_cm", "hip_cm", "chest_cm", "arm_cm", "thigh_cm", "calf_cm", "note"];
+  const m = ["weight_kg", "waist_cm", "neck_cm", "hip_cm", "chest_cm", "arm_cm", "thigh_cm", "calf_cm", "note",
+    "forearm_cm", "shoulder_width_cm", "skeletal_muscle_kg", "bf_pct", "bf_method"];
   const [row] = await tx.query<BodyMetrics>(
-    `insert into fit.body_metrics as b (date, weight_kg, waist_cm, neck_cm, hip_cm, chest_cm, arm_cm, thigh_cm, calf_cm, note, skinfolds)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+    `insert into fit.body_metrics as b (date, weight_kg, waist_cm, neck_cm, hip_cm, chest_cm, arm_cm, thigh_cm, calf_cm, note, skinfolds,
+       forearm_cm, shoulder_width_cm, skeletal_muscle_kg, bf_pct, bf_method)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16)
      on conflict (user_id, date) do update set
        ${m.map((c) => `${c} = coalesce(excluded.${c}, b.${c})`).join(", ")},
        skinfolds = case when excluded.skinfolds is null then b.skinfolds else coalesce(b.skinfolds, '{}'::jsonb) || excluded.skinfolds end
      returning ${BODY_METRICS_COLS}`,
     [date, n(input.weightKg), n(input.waistCm), n(input.neckCm), n(input.hipCm), n(input.chestCm), n(input.armCm),
-      n(input.thighCm), n(input.calfCm), input.note ?? null, input.skinfolds ? JSON.stringify(input.skinfolds) : null],
+      n(input.thighCm), n(input.calfCm), input.note ?? null, input.skinfolds ? JSON.stringify(input.skinfolds) : null,
+      n(input.forearmCm), n(input.shoulderWidthCm), n(input.skeletalMuscleKg), n(input.bfPct), input.bfPct != null ? input.bfMethod ?? "medido" : null],
   );
   const a = await getAthleteTx(tx);
   const warnings: string[] = [];
   let leanKg: number | null = null;
   let waistToHeight: number | null = null;
   let bfMarginPts: number | null = null;
-  if (!a.heightCm || !a.heightConfirmed) {
+  // Un % graso medido (de hoy o de antes ese mismo día) manda: no se pisa con el cálculo por perímetros.
+  const measured = row.bfPct != null && row.bfMethod != null && row.bfMethod !== "navy" && row.bfMethod !== "rfm";
+  if (measured) {
+    let kg = row.weightKg;
+    if (kg == null) {
+      const last = await tx.query<{ kg: number }>(
+        "select weight_kg as kg from fit.body_metrics where weight_kg is not null and date <= $1 order by date desc limit 1", [date]);
+      kg = last[0]?.kg ?? null;
+    }
+    leanKg = kg != null ? Math.round(kg * (1 - row.bfPct! / 100) * 10) / 10 : null;
+    bfMarginPts = 2;
+    if (a.heightCm && row.waistCm) waistToHeight = Math.round((row.waistCm / a.heightCm) * 100) / 100;
+  } else if (!a.heightCm || !a.heightConfirmed) {
     warnings.push("Altura sin confirmar: no calculo el % graso hasta que la confirmes.");
   } else {
     let kg = row.weightKg;
@@ -486,21 +509,88 @@ export type OnboardingField =
 
 export type OnboardingStatus = {
   complete: boolean;
+  /** Lo imprescindible. Con esto vacío el onboarding está completo. */
   missing: { field: OnboardingField; question: string; why: string }[];
+  /** Preguntas que conviene hacer pero no bloquean (hoy, el tobillo). */
+  optional: { field: OnboardingField; question: string; why: string }[];
   contradictions: string[];
+  /** Preguntas de la ficha de ingreso (`intake`) sin contestar, una frase cada una. */
+  intakeMissing: { field: IntakeField; question: string }[];
 };
+
+/** Ficha de ingreso: lo que hace falta saber para entrenar y comer con criterio. Texto libre o lista. */
+const Free = z.union([z.string().trim().max(1500), z.array(z.string().trim().max(300)).max(40)]);
+
+export const IntakeInput = z.object({
+  yearsTraining: Free.optional().describe("Años entrenando"),
+  sessionMinutes: Free.optional().describe("Minutos por sesión"),
+  trainingTime: Free.optional().describe("Hora habitual de entreno"),
+  trainingDays: Free.optional().describe("Días de entreno"),
+  previousTraining: Free.optional().describe("Entrenamientos anteriores"),
+  focusMuscles: Free.optional().describe("Grupos musculares a potenciar"),
+  avoidExercises: Free.optional().describe("Ejercicios que no quiere hacer"),
+  occupation: Free.optional().describe("Profesión"),
+  previousDiets: Free.optional().describe("Dietas anteriores"),
+  mealsPerDay: Free.optional().describe("Comidas al día"),
+  allergies: Free.optional().describe("Alergias o intolerancias"),
+  dietSkips: Free.optional().describe("Cómo se salta la dieta"),
+  supplements: Free.optional().describe("Suplementación actual"),
+  supplementsBudget: Free.optional().describe("Presupuesto para suplementos"),
+  conditions: Free.optional().describe("Patologías"),
+  medication: Free.optional().describe("Medicación (texto)"),
+  wakeTime: Free.optional().describe("Hora de levantarse"),
+  bedTime: Free.optional().describe("Hora de acostarse"),
+  habits: Free.optional().describe("Hábitos: alcohol, tabaco"),
+  goalInOwnWords: Free.optional().describe("Objetivo en sus palabras"),
+  bloodwork: z.object({
+    recent: z.boolean().describe("¿Tiene una analítica reciente?"),
+    date: IsoDate.optional().describe("Fecha de la analítica (AAAA-MM-DD)"),
+  }).optional().describe("Analítica reciente: sí o no y fecha"),
+  notes: Free.optional().describe("Notas"),
+});
+export type IntakeInput = z.input<typeof IntakeInput>;
+export type IntakeField = Exclude<keyof z.output<typeof IntakeInput>, "notes">;
+
+const INTAKE_QUESTIONS: Record<IntakeField, string> = {
+  yearsTraining: "¿Cuántos años llevas entrenando?",
+  sessionMinutes: "¿Cuántos minutos tienes por sesión?",
+  trainingTime: "¿A qué hora sueles entrenar?",
+  trainingDays: "¿Qué días de la semana entrenas?",
+  previousTraining: "¿Qué entrenamientos has seguido antes?",
+  focusMuscles: "¿Qué grupos musculares quieres potenciar?",
+  avoidExercises: "¿Hay ejercicios que no quieras hacer?",
+  occupation: "¿A qué te dedicas?",
+  previousDiets: "¿Qué dietas has hecho antes?",
+  mealsPerDay: "¿Cuántas comidas haces al día?",
+  allergies: "¿Tienes alergias o intolerancias alimentarias?",
+  dietSkips: "¿Cómo te saltas la dieta y cuándo?",
+  supplements: "¿Qué suplementos tomas ahora?",
+  supplementsBudget: "¿Cuánto quieres gastar al mes en suplementos?",
+  conditions: "¿Tienes alguna patología?",
+  medication: "¿Tomas alguna medicación?",
+  wakeTime: "¿A qué hora te levantas?",
+  bedTime: "¿A qué hora te acuestas?",
+  habits: "¿Qué hábitos tienes con el alcohol y el tabaco?",
+  goalInOwnWords: "¿Cuál es tu objetivo, dicho con tus palabras?",
+  bloodwork: "¿Te has hecho una analítica reciente y de qué fecha?",
+};
+
+const answered = (v: unknown): boolean =>
+  v != null && (typeof v === "string" ? v.trim() !== "" : Array.isArray(v) ? v.length > 0 : typeof v === "object" ? "recent" in v : true);
 
 const HEIGHT_CONTRADICTION = "Altura: 174 cm en la hoja de junio, 164 cm en otra ficha. Confirma cuál.";
 
 export async function onboardingStatusTx(tx: Tx): Promise<OnboardingStatus> {
   const a = await getAthleteTx(tx);
-  const [f] = await tx.query<{ weight: boolean; waist: boolean; ankle: boolean; program: boolean }>(
+  const [f] = await tx.query<{ weight: boolean; waist: boolean; ankle: boolean; program: boolean; intake: Record<string, unknown> | null }>(
     `select exists (select 1 from fit.body_metrics where weight_kg is not null) as weight,
             exists (select 1 from fit.body_metrics where waist_cm is not null) as waist,
             exists (select 1 from fit.injuries i where i.zone = 'tobillo' and (i.status = 'cerrada'
                     or exists (select 1 from fit.injury_logs l where l.injury_id = i.id))) as ankle,
-            exists (select 1 from fit.macrocycles where status = 'activo') as program`);
+            exists (select 1 from fit.macrocycles where status = 'activo') as program,
+            (select onboarding -> 'intake' from fit.athletes where id = auth.uid()) as intake`);
   const missing: OnboardingStatus["missing"] = [];
+  const optional: OnboardingStatus["optional"] = [];
   const ask = (ok: boolean, field: OnboardingField, question: string, why: string) => { if (!ok) missing.push({ field, question, why }); };
   ask(a.heightCm != null && a.heightConfirmed, "heightCm", "¿Cuánto mides, en centímetros?",
     "Sin la altura confirmada no se calculan el gasto ni el % graso.");
@@ -509,12 +599,16 @@ export async function onboardingStatusTx(tx: Tx): Promise<OnboardingStatus> {
   ask(f.waist, "waistCm", "¿Cuánto mide tu cintura a la altura del ombligo?", "Con la cintura se estima la grasa y se ve el progreso que la báscula no enseña.");
   ask(a.hrRest != null, "hrRest", "¿Cuál es tu pulso en reposo al despertar?", "Con él se calculan tus zonas de cardio.");
   ask(a.bedtime != null, "bedtime", "¿A qué hora te acuestas normalmente?", "Marca la hora límite de la cafeína.");
-  ask(f.ankle, "ankle", "¿Cómo está el tobillo hoy, de 0 a 10? Si ya no molesta, dilo.", "Decide si hay sentadilla libre, impacto y carrera.");
+  if (!f.ankle) optional.push({ field: "ankle", question: "¿Alguna lesión o molestia ahora?", why: "Decide si hay sentadilla libre, impacto y carrera." });
   ask(f.program, "program", "¿Qué programa quieres activar?", "Sin programa activo no hay sesión de hoy ni progresión.");
   ask(a.adhdMedication != null, "adhdMedication", "¿Tomas medicación para el TDAH? Sí o no.", "Cambia lo que se puede sugerir con la cafeína.");
   ask(a.weeklyFoodBudgetEur != null, "weeklyFoodBudgetEur", "¿Cuánto quieres gastar en comida a la semana?", "La lista de la compra se ajusta a ese presupuesto.");
   ask(a.stores.length > 0, "stores", "¿En qué tiendas compras?", "Los alimentos y precios salen de esas tiendas.");
-  return { complete: missing.length === 0, missing, contradictions: a.heightConfirmed ? [] : [HEIGHT_CONTRADICTION] };
+  const intake = f.intake ?? {};
+  const intakeMissing = (Object.keys(INTAKE_QUESTIONS) as IntakeField[])
+    .filter((k) => !answered(intake[k]) && !(k === "wakeTime" && a.wakeTime) && !(k === "bedTime" && a.bedtime))
+    .map((field) => ({ field, question: INTAKE_QUESTIONS[field] }));
+  return { complete: missing.length === 0, missing, optional, contradictions: a.heightConfirmed ? [] : [HEIGHT_CONTRADICTION], intakeMissing };
 }
 
 export async function getOnboardingStatus(userId: string, _input?: unknown, db?: Db): Promise<OnboardingStatus> {
@@ -525,6 +619,7 @@ const Level = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
 const Lift = z.number().min(0).max(500).optional();
 
 export const SaveOnboardingInput = UpdateAthleteInput.extend({
+  intake: IntakeInput.optional().describe("Ficha de ingreso: entreno, comida, salud y hábitos. Se va completando: lo nuevo se suma a lo guardado"),
   weightKg: z.number().min(30).max(300).optional().describe("Peso de hoy en kg"),
   waistCm: z.number().min(40).max(200).optional().describe("Cintura de hoy en cm"),
   neckCm: z.number().min(20).max(70).optional().describe("Cuello en cm (mejora la estimación de grasa)"),
@@ -572,7 +667,7 @@ export async function saveOnboarding(userId: string, input: SaveOnboardingInput,
   const a = parseInput(SaveOnboardingInput, input);
   return withUser(userId, async (tx) => {
     const warnings: string[] = [];
-    const { weightKg, waistCm, neckCm, measuredOn, ankle, classes, exams, marks, ...profile } = a;
+    const { weightKg, waistCm, neckCm, measuredOn, ankle, classes, exams, marks, intake, ...profile } = a;
     // Dar la altura en el onboarding es confirmarla, salvo que se diga lo contrario.
     if (profile.heightCm != null && profile.heightConfirmed === undefined) profile.heightConfirmed = true;
     await updateAthleteTx(tx, profile);
@@ -623,8 +718,13 @@ export async function saveOnboarding(userId: string, input: SaveOnboardingInput,
       }
     }
 
-    const answers = JSON.stringify({ ...a, savedAt: new Date().toISOString() });
+    const { intake: _intake, ...rest } = a;
+    const answers = JSON.stringify({ ...rest, savedAt: new Date().toISOString() });
     await tx.query("update fit.athletes set onboarding = onboarding || $1::jsonb, updated_at = now() where id = auth.uid()", [answers]);
+    if (intake)
+      await tx.query(
+        "update fit.athletes set onboarding = jsonb_set(onboarding, '{intake}', coalesce(onboarding -> 'intake', '{}'::jsonb) || $1::jsonb, true) where id = auth.uid()",
+        [JSON.stringify(intake)]);
     const status = await onboardingStatusTx(tx);
     if (status.complete) await tx.query("update fit.athletes set onboarded_at = coalesce(onboarded_at, now()) where id = auth.uid()");
     return { athlete: await getAthleteTx(tx), status, trainingLevel: level, warnings };

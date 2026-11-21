@@ -247,6 +247,21 @@ describe("tipo de día", () => {
   it("una fecha futura sin plan activo es Off supuesto", async () => {
     expect(await getDayType(cal, { date: "2099-01-01" }, db)).toMatchObject({ dayType: "off", assumed: true, basis: "sin_plan" });
   });
+
+  it("día libre: se registra pero no se juzga (sin objetivo, restante ni déficit)", async () => {
+    const day = "2026-10-24";
+    expect(await setDayType(cal, { date: day, dayType: "libre" }, db)).toMatchObject({ dayType: "libre", forced: true, basis: "forzado" });
+    const r = await logFood(cal, { date: day, meal: "comida", foodId: food["Pechuga de pollo"], grams: 200 }, db);
+    if (!r.ok) throw new Error(r.problems.join(" "));
+    expect(r.day).toMatchObject({ free: true, target: null, remaining: null });
+    const d = await getNutritionDay(cal, { date: day }, db);
+    expect(d).toMatchObject({ dayFree: true, target: null, remaining: null, proteinPct: null, note: "Día libre: se registra, no se juzga." });
+    expect(d.totals.kcal).toBe(220);
+    expect(await setDayType(cal, { date: day, dayType: "auto" }, db)).toMatchObject({ dayType: "off", forced: false });
+    const back = await getNutritionDay(cal, { date: day }, db);
+    expect(back).toMatchObject({ dayFree: false, note: null });
+    expect(back.target).not.toBeNull();
+  });
 });
 
 describe("comidas ancla", () => {
@@ -370,6 +385,17 @@ describe("revisión semanal", () => {
     expect(r.action).toBe("mantener");
     expect(r.why).toMatch(/calibración/);
     expect(r.proposal).toBeNull();
+  });
+
+  it("un día libre no cuenta para la adherencia pero sí para la media de kcal", async () => {
+    await setDayType(cal, { date: "2026-11-04", dayType: "libre" }, db);
+    await withUser(cal, (tx) => tx.query("update fit.food_logs set kcal = 3000 where date = '2026-11-04'"), db);
+    const r = await weeklyNutritionReview(cal, { weekStart: "2026-11-02" }, db);
+    expect(r.data).toMatchObject({ daysCounted: 6, freeDays: 1, adherentDays: 6, adherencePct: 100 });
+    const avg = await withUser(cal, (tx) => tx.query<{ a: number }>(
+      "select avg(k)::float as a from (select sum(kcal) as k from fit.food_logs where date between '2026-11-02' and '2026-11-08' group by date) x"), db);
+    expect(r.data.avgKcal).toBe(Math.round(avg[0].a)); // los 3.000 kcal del día libre entran en la media
+    await setDayType(cal, { date: "2026-11-04", dayType: "auto" }, db);
   });
 
   it("con dos semanas anotadas mide ritmo y adherencia y llama a la decisión del motor", async () => {
