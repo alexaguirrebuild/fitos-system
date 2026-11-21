@@ -120,6 +120,9 @@ export default async function CardioPage() {
         <p className="small muted">
           El reloj o un atajo del móvil envían los datos con un token de ingesta a <span className="fig text-fg">POST /api/ingest/health</span>. El token se enseña una sola vez.
         </p>
+        <p className="small muted mt-2">
+          Con HC Webhook (Android): URL <span className="fig text-fg">https://fitos-system.vercel.app/api/ingest/hc-webhook</span> y cabecera <span className="fig text-fg">Authorization</span> con valor <span className="fig text-fg">Bearer fit_ing_…</span>.
+        </p>
         {live.length ? (
           <ul className="rows mt-3">
             {live.map((t) => (

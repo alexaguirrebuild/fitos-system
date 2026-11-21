@@ -33,16 +33,28 @@ function stageKind(stage: unknown): "light" | "deep" | "rem" | null {
 
 const MEAL_MAP: Record<string, LogFoodInput["meal"]> = { breakfast: "desayuno", lunch: "comida", dinner: "cena", snack: "snack" };
 
-export type HcTranslation = { samples: HealthSample[]; foods: LogFoodInput[]; skipped: string[] };
+/**
+ * Origen de la muestra para ingestHealth. Cada app que escribe en Health Connect (reloj, móvil…) va con su propio
+ * `source`, porque el total diario de pasos y kcal toma el mayor entre orígenes en vez de sumarlos: si el móvil y el
+ * reloj cuentan los mismos pasos, sumarlos los duplicaría.
+ */
+export const hcSourceOf = (r: Rec): string => {
+  const origin = str((r.metadata as Meta | undefined)?.data_origin)?.replace(/[^A-Za-z0-9._-]/g, "");
+  return origin ? `${HC_WEBHOOK_SOURCE}:${origin}`.slice(0, 60) : HC_WEBHOOK_SOURCE;
+};
+
+/** `sources[i]` es el origen de `samples[i]`. */
+export type HcTranslation = { samples: HealthSample[]; sources: string[]; foods: LogFoodInput[]; skipped: string[] };
 
 /** Traduce el cuerpo de HC Webhook. No toca la base de datos. */
 export function translateHcPayload(body: unknown): HcTranslation {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw invalid("El cuerpo de HC Webhook tiene que ser un objeto JSON.");
   const p = body as Rec;
   const samples: HealthSample[] = [];
+  const sources: string[] = [];
   const foods: LogFoodInput[] = [];
   const skipped: string[] = [];
-  const push = (s: HealthSample, r: Rec) => samples.push({ ...s, ...(sid(r) && { sourceId: sid(r) }) });
+  const push = (s: HealthSample, r: Rec) => { samples.push({ ...s, ...(sid(r) && { sourceId: sid(r) }) }); sources.push(hcSourceOf(r)); };
 
   for (const r of arr(p.steps)) {
     const v = num(r.count), start = str(r.start_time), end = str(r.end_time);
@@ -106,7 +118,7 @@ export function translateHcPayload(body: unknown): HcTranslation {
     if (!["timestamp", "app_version", "timezone", "steps", "heart_rate", "resting_heart_rate", "heart_rate_variability", "active_calories", "weight", "sleep", "exercise", "nutrition"].includes(key))
       skipped.push(`tipo no importado: ${key}`);
   }
-  return { samples, foods, skipped: [...new Set(skipped)] };
+  return { samples, sources, foods, skipped: [...new Set(skipped)] };
 }
 
 export type HcIngestResult = {
@@ -115,12 +127,16 @@ export type HcIngestResult = {
   skipped: string[];
 };
 
-/** Guarda lo traducido: muestras por ingestHealth (en lotes de 1.000) y comidas por logFood (idempotente por clientId). */
+/** Guarda lo traducido: muestras por ingestHealth (un lote por origen, de 1.000 en 1.000) y comidas por logFood (idempotente por clientId). */
 export async function ingestHcWebhook(userId: string, body: unknown, db?: Db): Promise<HcIngestResult> {
   const t = translateHcPayload(body);
   const health = { processed: 0, skipped: 0, errors: 0, days: [] as string[], warnings: [] as string[] };
-  for (let i = 0; i < t.samples.length; i += MAX_HEALTH_SAMPLES) {
-    const r = await ingestHealth(userId, { source: HC_WEBHOOK_SOURCE, samples: t.samples.slice(i, i + MAX_HEALTH_SAMPLES) }, db);
+  const bySource = new Map<string, HealthSample[]>();
+  t.samples.forEach((s, i) => { const k = t.sources[i]; if (!bySource.has(k)) bySource.set(k, []); bySource.get(k)!.push(s); });
+  const batches = [...bySource].flatMap(([source, list]) =>
+    Array.from({ length: Math.ceil(list.length / MAX_HEALTH_SAMPLES) }, (_, j) => ({ source, samples: list.slice(j * MAX_HEALTH_SAMPLES, (j + 1) * MAX_HEALTH_SAMPLES) })));
+  for (const batch of batches) {
+    const r = await ingestHealth(userId, batch, db);
     health.processed += r.processed;
     health.skipped += r.skipped;
     health.errors += r.errors.length;

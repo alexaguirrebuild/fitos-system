@@ -69,4 +69,18 @@ describe("ingesta de HC Webhook", () => {
     expect(r2.health.processed).toBe(0);
     expect(r2.foods).toMatchObject({ logged: 0, duplicates: 1 });
   });
+
+  it("móvil y reloj con los mismos pasos: el día toma el mayor, no la suma", async () => {
+    const at = (h: string) => ({ start_time: `2026-11-19T${h}:00:00+01:00`, end_time: `2026-11-19T${h}:59:00+01:00` });
+    const r = await ingestHcWebhook(a, {
+      steps: [
+        { count: 4000, ...at("10"), metadata: { id: "w1", data_origin: "com.oplus.health" } },
+        { count: 2500, ...at("11"), metadata: { id: "w2", data_origin: "com.oplus.health" } },
+        { count: 6000, ...at("10"), metadata: { id: "p1", data_origin: "com.google.android.apps.fitness" } },
+      ],
+    }, db);
+    expect(r.health.processed).toBe(3);
+    const day = (await withUser(a, (tx) => tx.query<{ steps: number }>("select steps from fit.daily_activity where date = '2026-11-19'"), db))[0];
+    expect(day.steps).toBe(6500);
+  });
 });

@@ -34,7 +34,8 @@ async function readLimited(request: Request, limit: number): Promise<string | nu
 
 export async function POST(request: Request) {
   try {
-    const bearer = /^Bearer\s+(\S+)$/i.exec((request.headers.get("authorization") ?? "").trim())?.[1];
+    // «Bearer fit_ing_…» o el token a pelo: en la app del móvil es fácil olvidar el «Bearer ».
+    const bearer = /^(?:Bearer\s+)?(fit_ing_\S+)$/i.exec((request.headers.get("authorization") ?? "").trim())?.[1];
     const who = bearer ? await resolveIngestToken(bearer) : null;
     if (!who) return json({ error: "no_autorizado", message: "Falta un token de ingesta válido en la cabecera Authorization." }, 401);
 
