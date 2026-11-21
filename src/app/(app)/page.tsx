@@ -44,6 +44,11 @@ export default async function HoyPage() {
       ) : t.load?.deload.maintenance ? (
         <p className="notice mt-5 small">Periodo de exámenes: semana de mantenimiento, sin subir volumen.</p>
       ) : null}
+      {t.load?.acwr.zone === "pico_extremo" ? (
+        <p className="notice notice-warn mt-3 small" role="alert">
+          <span className="notice-t">Carga extrema.</span> La de esta semana dobla tu media de 4 semanas: hoy, sesión corta y sin buscar marcas.
+        </p>
+      ) : null}
       {t.ankle?.restricted ? <p className="notice notice-warn mt-3 small">Tobillo restringido hoy: sin impacto.</p> : null}
 
       <section className="mt-8 grid grid-cols-3 gap-x-3 border-y border-line py-5" aria-label="Cifras de hoy">
@@ -84,7 +89,7 @@ export default async function HoyPage() {
           k="Carga"
           v={t.load ? (t.load.acwr.reliable && t.load.acwr.ratio != null ? <span className="fig">{num(t.load.acwr.ratio, 2)}</span> : "Aún sin ratio") : "Sin dato"}
           note={t.load ? t.load.acwr.label : undefined}
-          warn={t.load?.acwr.zone === "pico" || t.load?.acwr.zone === "precaucion"}
+          warn={t.load?.acwr.zone === "pico" || t.load?.acwr.zone === "pico_extremo" || t.load?.acwr.zone === "precaucion"}
         />
       </section>
 

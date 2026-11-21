@@ -4,10 +4,10 @@ import { BodyForm } from "@/components/body-form";
 import { BodyMap } from "@/components/body-map";
 import { LineChart, VolumeBar } from "@/components/charts";
 import { PhotoUpload } from "@/components/photo-upload";
-import { Empty, PageHeader, Section } from "@/components/ui";
+import { Empty, PageHeader, Row, Section } from "@/components/ui";
 import { sessionOrLogin } from "@/app/_server/session";
 import { day, num, signed } from "@/lib/format";
-import { getProgress, getVolumeStatus } from "@/server/services/analytics";
+import { getLoadStatus, getProgress, getVolumeStatus } from "@/server/services/analytics";
 import { getAthlete } from "@/server/services/athlete";
 import { listPhotos } from "@/server/services/media";
 import { addDays } from "@/server/time";
@@ -20,7 +20,7 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
   const userId = await sessionOrLogin("/progreso");
   const sp = await searchParams;
   const days = RANGES.includes(Number(sp.dias)) ? Number(sp.dias) : 90;
-  const [p, current, athlete, photos] = await Promise.all([getProgress(userId, { days }), getVolumeStatus(userId), getAthlete(userId), listPhotos(userId, { limit: 9 })]);
+  const [p, current, athlete, photos, load] = await Promise.all([getProgress(userId, { days }), getVolumeStatus(userId), getAthlete(userId), listPhotos(userId, { limit: 9 }), getLoadStatus(userId)]);
   // El microciclo en curso puede no tener series aún (recién activado): entonces se miran los últimos 28 días.
   const volume = current.muscles.some((m) => m.sets > 0) ? current : await getVolumeStatus(userId, { from: addDays(p.to, -27), to: p.to });
   const volumeFallback = volume !== current;
@@ -74,6 +74,7 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
               <VolumeBar key={m.muscleId} name={m.name} sets={m.setsPerWeek} mev={m.mev} mrv={m.mrv} />
             ))}
             <p className="micro faint mt-2">Series efectivas llevadas a 7 días. La franja más oscura de cada barra va del mínimo (MEV) al máximo recuperable (MRV).</p>
+            {volume.inDeficit ? <p className="micro accent mt-1">En déficit: las series semanales se quedan en 12-16 por grupo. Se progresa en carga y RIR, no en series.</p> : null}
             {volume.unclassifiedSets > 0 ? <p className="micro faint mt-1">{volume.unclassifiedSets} series sin grupo muscular (ejercicios sin enlazar).</p> : null}
           </>
         )}
@@ -172,6 +173,16 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
               <p className="small muted mt-3">El ratio necesita 21 días de historial. Aún no los hay en este periodo.</p>
             )}
             <p className="small muted mt-3">Es un semáforo, no un predictor de lesión: sirve para no subir de golpe, nada más.</p>
+            {load.signals.shortSleepNights != null || load.signals.tendonPain != null ? (
+              <div className="rows mt-4">
+                {load.signals.shortSleepNights != null ? (
+                  <Row k="Noches de menos de 7 h" v={<span className="fig">{load.signals.shortSleepNights} de 7</span>} note="3 o más cuentan como señal de descarga" warn={load.signals.shortSleepNights >= 3} />
+                ) : null}
+                {load.signals.tendonPain != null ? (
+                  <Row k="Dolor tendinoso" v={<span className="fig">{load.signals.tendonPain}/10</span>} note="peor de los últimos 3 días · más de 5 es señal" warn={load.signals.tendonPain > 5} />
+                ) : null}
+              </div>
+            ) : null}
           </>
         )}
       </Section>
