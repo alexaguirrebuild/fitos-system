@@ -317,8 +317,13 @@ export async function validateAuthorizeRequest(params: AuthorizeParams, db?: Db)
   if (!requested.every(isScope)) return fail("invalid_scope", `supported scopes: ${SCOPE_NAMES.join(" ")}`);
   const scope = requested.length ? SCOPE_NAMES.filter((s) => requested.includes(s)) : [DEFAULT_SCOPE];
   // RFC 8707: el token es para un recurso. Sin `resource` se entiende el MCP (clientes antiguos).
+  // En este origen solo hay un recurso (el MCP): se acepta cualquier ruta del mismo origen
+  // (el cliente de Meta, por ejemplo, manda el origen o «/mcp») y el token queda ligado a /api/mcp.
   const resource = mcpResource();
-  if (params.resource !== undefined && normalizeResource(params.resource) !== resource) return fail("invalid_target", "unknown resource");
+  if (params.resource !== undefined) {
+    const asked = normalizeResource(params.resource);
+    if (!asked || new URL(asked).origin !== new URL(resource).origin) return fail("invalid_target", "unknown resource");
+  }
 
   return { ok: true, client, redirectUri, scope, state, codeChallenge: params.code_challenge, resource };
 }

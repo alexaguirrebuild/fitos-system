@@ -57,6 +57,8 @@ async function Consent({ searchParams }: { searchParams: SearchParams }) {
 
   const check = await validateAuthorizeRequest(params);
   if (!check.ok) {
+    // Sin secretos: solo el motivo y los parámetros que suelen fallar con clientes nuevos.
+    console.warn("[oauth/authorize] rechazo", JSON.stringify({ error: check.error, description: check.description, client: params.client_id, scope: params.scope, resource: params.resource, method: params.code_challenge_method }));
     if (check.redirectable && check.redirectUri) {
       redirect(authorizeRedirect(check.redirectUri, { error: check.error, error_description: check.description }, check.state ?? null));
     }
