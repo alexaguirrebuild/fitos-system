@@ -307,15 +307,15 @@ describe("POST /api/ingest/health", () => {
 describe("medios", () => {
   it("buildVideoPath: carpetas legibles y nombre de fichero saneado", () => {
     const p = buildVideoPath({ macrocycleName: "Definición 2026/27: fase 1", exerciseName: "Sentadilla hack (pies juntos)", date: "2026-11-20", kg: 92.5, reps: 8 });
-    expect(p.folders).toEqual(["Sistema Físico", "Definición 2026 27 fase 1", "Vídeos", "Sentadilla hack (pies juntos)"]);
+    expect(p.folders).toEqual(["Definición 2026 27 fase 1", "Vídeos", "Sentadilla hack (pies juntos)"]);
     expect(p.fileName).toBe("2026-11-20_sentadilla-hack-pies-juntos_92.5kgx8.mp4");
     expect(p.path).toBe(`${p.folders.join("/")}/${p.fileName}`);
 
     expect(buildVideoPath({ macrocycleName: "  ", exerciseName: "../..\\etc", date: "2026-11-20", kg: 100, reps: 5, ext: ".MOV" })).toMatchObject({
-      folders: ["Sistema Físico", "Sin macrociclo", "Vídeos", "etc"], fileName: "2026-11-20_etc_100kgx5.mov",
+      folders: ["Sin macrociclo", "Vídeos", "etc"], fileName: "2026-11-20_etc_100kgx5.mov",
     });
     expect(buildVideoPath({ macrocycleName: "M", exerciseName: "Curl", date: "2026-11-20" }).fileName).toBe("2026-11-20_curl.mp4");
-    expect(buildPhotoPath({ macrocycleName: "M", date: "2026-11-20", pose: "frontal" })).toMatchObject({ folders: ["Sistema Físico", "M", "Fotos"], fileName: "2026-11-20_frontal.jpg" });
+    expect(buildPhotoPath({ macrocycleName: "M", date: "2026-11-20", pose: "frontal" })).toMatchObject({ folders: ["M", "Fotos"], fileName: "2026-11-20_frontal.jpg" });
   });
 
   it("registerVideo rellena kg, repeticiones, RIR y material desde la serie y la sesión", async () => {
@@ -342,7 +342,7 @@ describe("medios", () => {
     expect(r.missing).toEqual(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN", "DRIVE_ROOT_FOLDER_ID"]);
     expect(r.message).toMatch(/NO se ha guardado/);
     expect(r.video).toMatchObject({ status: "pendiente", driveFileId: null, kg: 100, reps: 5 });
-    expect(r.video.drivePath).toMatch(/^Sistema Físico\/Sin macrociclo\/Vídeos\/Ejercicio\/\d{4}-\d{2}-\d{2}_ejercicio_100kgx5\.mp4$/);
+    expect(r.video.drivePath).toMatch(/^Sin macrociclo\/Vídeos\/Ejercicio\/\d{4}-\d{2}-\d{2}_ejercicio_100kgx5\.mp4$/);
   });
 
   /** Drive falso: token, búsqueda y alta de carpetas, y subida resumable. Apunta todo lo que recibe. */
@@ -384,7 +384,7 @@ describe("medios", () => {
     const r = await uploadVideo(a, { kg: 80, reps: 10 }, { name: "IMG_0001.MOV", mimeType: "video/quicktime", body: Buffer.alloc(1000, 7) }, db, { fetchImpl: drive.fetchImpl });
     expect(r).toMatchObject({ status: "subido", missing: [], video: { status: "subido", driveFileId: "fichero-1", driveUrl: "https://drive.test/fichero-1" } });
     expect(r.video.drivePath).toMatch(/_ejercicio_80kgx10\.mov$/);
-    expect(drive.folders).toEqual(["Sistema Físico", "Sin macrociclo", "Vídeos", "Ejercicio"]);
+    expect(drive.folders).toEqual(["Sin macrociclo", "Vídeos", "Ejercicio"]);
     expect(drive.log.filter((c) => c.method === "PUT").map((c) => c.range)).toEqual(["bytes 0-999/1000"]);
     expect(drive.received()).toBe(1000);
     expect(drive.log.filter((c) => c.url.includes("oauth2")).length).toBe(1); // el token se reutiliza

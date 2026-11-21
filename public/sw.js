@@ -1,4 +1,4 @@
-/* Service worker mínimo de Sistema Físico.
+/* Service worker mínimo de FITOS SYSTEM.
  * - Precachea la pantalla sin conexión y los iconos.
  * - Sirve de caché solo estáticos con huella (/_next/static, /icons): nunca cambian de contenido.
  * - Las páginas van siempre a la red (llevan datos del atleta y NO se guardan). Sin red: pantalla /offline.

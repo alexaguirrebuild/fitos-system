@@ -8,7 +8,7 @@ import { AppError, invalid } from "@/server/errors";
 export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 const OFF_FIELDS = "code,product_name,product_name_es,brands,quantity,product_quantity,serving_size,serving_quantity,nutriments,nutriscore_grade,stores_tags";
-const DEFAULT_USER_AGENT = "sistema-fisico/0.1 (app personal de entrenamiento)";
+const DEFAULT_USER_AGENT = "fitos-system/0.1 (app personal de entrenamiento)";
 
 export const offProductUrl = (barcode: string) => `https://world.openfoodfacts.org/product/${barcode}`;
 const offApiUrl = (barcode: string) => `https://world.openfoodfacts.org/api/v2/product/${barcode}.json?fields=${OFF_FIELDS}&lc=es`;

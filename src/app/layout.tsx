@@ -7,9 +7,9 @@ import "./globals.css";
 const archivo = Archivo({ variable: "--font-archivo", subsets: ["latin"], axes: ["wdth"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Sistema Físico", template: "%s · Sistema Físico" },
+  title: { default: "FITOS SYSTEM", template: "%s · FITOS SYSTEM" },
   description: "Entreno, comida y recuperación en un solo sitio.",
-  applicationName: "Sistema Físico",
+  applicationName: "FITOS SYSTEM",
   appleWebApp: { capable: true, title: "Físico", statusBarStyle: "default" },
   icons: {
     icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],

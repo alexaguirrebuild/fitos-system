@@ -137,7 +137,7 @@ describe("POST /api/mcp: protocolo y herramientas", () => {
   it("initialize", async () => {
     const { access } = await tokenFor(["mcp:read"]);
     const r = await rpc(access, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });
-    expect(r.result).toMatchObject({ serverInfo: { name: "sistema-fisico" }, capabilities: { tools: expect.anything() } });
+    expect(r.result).toMatchObject({ serverInfo: { name: "fitos-system" }, capabilities: { tools: expect.anything() } });
   });
 
   it("tolera `bearer` en minúsculas y que falten Accept y Content-Type", async () => {
@@ -380,7 +380,7 @@ describe("un cliente MCP de verdad (el del SDK), sin red", () => {
     // 6. El cliente MCP habla con el servidor.
     const client = new Client({ name: "cliente-sdk", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(serverUrl), { fetch: inProcessFetch, requestInit: { headers: { Authorization: `Bearer ${tokens.access_token}` } } }));
-    expect(client.getServerVersion()?.name).toBe("sistema-fisico");
+    expect(client.getServerVersion()?.name).toBe("fitos-system");
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["whoami", "server_guide"]));
     expect(tools.map((t) => t.name)).not.toContain("test_log_note");

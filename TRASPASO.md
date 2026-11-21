@@ -1,4 +1,4 @@
-# TRASPASO · Sistema Físico
+# TRASPASO · FITOS SYSTEM
 
 Fecha: 2026-11-20. Repo local en `~/Documents/sistema-fisico` (git, sin remoto, sin `.env`).
 

@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Sistema Físico",
+    name: "FITOS SYSTEM",
     short_name: "Físico",
     description: "Entreno, comida y recuperación en un solo sitio.",
     lang: "es",

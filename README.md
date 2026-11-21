@@ -1,4 +1,4 @@
-# Sistema Físico
+# FITOS SYSTEM
 
 Sistema operativo físico personal de Alex: entreno con progresión propuesta, nutrición On/Off, cardio y reloj, y un servidor MCP con OAuth para manejarlo desde Muse. Sustituye a `SISTEMA-ALEX-APP`.
 
