@@ -151,7 +151,7 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
   return (
     <main className="page" style={{ paddingBottom: "calc(var(--tab-h) + var(--safe-b) + 9.5rem)" }}>
       <header className="mb-5">
-        <Link href="/entreno" className="-ml-2 mb-1 inline-flex min-h-12 items-center gap-1 pr-3 text-bone-2">
+        <Link href="/entreno" className="-ml-2 mb-1 inline-flex min-h-12 items-center gap-1 pr-3 text-fg-2">
           <IconBack width={20} height={20} />
           <span className="small">Entreno</span>
         </Link>
@@ -159,7 +159,7 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
         <p className="small muted mt-2">
           {view.readiness != null ? (
             <>
-              Readiness <span className="fig text-bone">{Math.round(view.readiness)}</span> · {view.readinessLabel}
+              Readiness <span className="fig text-fg">{Math.round(view.readiness)}</span> · {view.readinessLabel}
             </>
           ) : (
             <>
@@ -203,10 +203,10 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
               <li key={id} className="border-b border-line">
                 <button type="button" className="flex min-h-14 w-full items-center justify-between gap-3 py-3 text-left" onClick={() => setActiveId(id)} aria-expanded={false}>
                   <span className="min-w-0">
-                    <span className={`block truncate font-medium ${b.done ? "text-bone-2" : ""}`}>{b.exercise.name}</span>
+                    <span className={`block truncate font-medium ${b.done ? "text-fg-2" : ""}`}>{b.exercise.name}</span>
                     <span className="fig micro faint">{targetText(b)}</span>
                   </span>
-                  <span className={`fig small flex-none ${b.done ? "text-bone-2" : ""}`}>
+                  <span className={`fig small flex-none ${b.done ? "text-fg-2" : ""}`}>
                     {b.done ? <IconCheck width={18} height={18} className="mr-1 inline-block align-[-3px]" /> : null}
                     {b.workingSetsDone + queued.length}
                     {planned ? `/${planned}` : ""}
@@ -217,9 +217,9 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
           }
 
           return (
-            <li key={id} className="border-b border-line-strong pb-5 pt-4" aria-current="true">
+            <li key={id} className="slab -mx-2 my-3 px-4 pb-5 pt-4" aria-current="true">
               <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-lg font-semibold leading-snug">{b.exercise.name}</h2>
+                <h2 className="text-lg font-bold leading-snug"><Link href={`/libreria/${id}`} className="hover:underline">{b.exercise.name}</Link></h2>
                 <span className="fig small muted flex-none">
                   {b.workingSetsDone + queued.length}
                   {planned ? `/${planned}` : ""}
@@ -227,10 +227,26 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
               </div>
               {b.replaces ? <p className="micro faint">En lugar de {b.replaces.name}</p> : null}
 
-              <p className="display mt-2 text-[1.875rem]">{targetText(b)}</p>
+              {(() => {
+                const s = b.suggestion;
+                const p = b.prescription;
+                const reps = p && (p.repMin != null || p.repMax != null) ? repRange(p.repMin, p.repMax) : s?.repsTarget.length ? repRange(Math.min(...s.repsTarget), Math.max(...s.repsTarget)) : null;
+                const rir = s?.rirTarget ?? p?.rirTarget ?? null;
+                return (
+                  <p className="mt-3 flex flex-wrap items-baseline gap-x-3">
+                    <span className="display text-[3.5rem]">
+                      {s?.kg != null ? <>{num(s.kg, 2)}<span className="unit">kg</span></> : reps ? <>{reps}<span className="unit">reps</span></> : "Libre"}
+                    </span>
+                    <span className="fig text-lg font-semibold">
+                      {s?.kg != null && reps ? `× ${reps}` : s?.kg == null ? "carga libre" : ""}
+                      {rir != null ? <span className="muted font-normal"> · RIR {num(rir)}</span> : null}
+                    </span>
+                  </p>
+                );
+              })()}
               {b.suggestion ? (
                 <p className="small muted mt-1.5">
-                  <span className="text-bone">{RULE[b.suggestion.rule] ?? b.suggestion.rule}.</span> {b.suggestion.why}
+                  <span className="font-semibold text-fg">{RULE[b.suggestion.rule] ?? b.suggestion.rule}.</span> {b.suggestion.why}
                   {b.suggestion.defaultRx ? " Fuera del plan: pauta por defecto." : ""}
                 </p>
               ) : null}
@@ -275,13 +291,13 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
                     </li>
                   ))}
                   {pendingHere.map((s) => (
-                    <li key={s.key} className="fig flex min-h-12 items-center justify-between border-b border-line text-bone-2">
+                    <li key={s.key} className="fig flex min-h-12 items-center justify-between border-b border-line text-fg-2">
                       <span>{s.text}</span>
                       <span className="micro">enviando</span>
                     </li>
                   ))}
                   {queued.map((q) => (
-                    <li key={q.id} className="fig flex min-h-12 items-center justify-between border-b border-line text-bone-2">
+                    <li key={q.id} className="fig flex min-h-12 items-center justify-between border-b border-line text-fg-2">
                       <span>{setText(q.payload as LogSetInput)}</span>
                       <span className="micro accent">sin enviar</span>
                     </li>
@@ -290,7 +306,7 @@ export function LiveWorkout({ initial }: { initial: WorkoutView }) {
               ) : null}
 
               {flash && flash.exerciseId === id ? (
-                <p className={`mt-3 font-medium ${flash.pr ? "accent fig" : "small muted"}`} role="status">
+                <p className={`mt-3 ${flash.pr ? "display text-[1.75rem] accent" : "small muted"}`} role="status">
                   {flash.text}
                 </p>
               ) : null}

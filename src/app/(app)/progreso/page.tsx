@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BodyForm } from "@/components/body-form";
+import { BodyMap } from "@/components/body-map";
 import { LineChart, VolumeBar } from "@/components/charts";
 import { PhotoUpload } from "@/components/photo-upload";
-import { Empty, PageHeader, Section } from "@/components/ui";
+import { Empty, PageHeader, Row, Section } from "@/components/ui";
 import { sessionOrLogin } from "@/app/_server/session";
 import { day, num, signed } from "@/lib/format";
-import { getProgress, getVolumeStatus } from "@/server/services/analytics";
+import { getLoadStatus, getProgress, getVolumeStatus } from "@/server/services/analytics";
 import { getAthlete } from "@/server/services/athlete";
 import { listPhotos } from "@/server/services/media";
+import { addDays } from "@/server/time";
 
 export const metadata: Metadata = { title: "Progreso" };
 
@@ -18,7 +20,10 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
   const userId = await sessionOrLogin("/progreso");
   const sp = await searchParams;
   const days = RANGES.includes(Number(sp.dias)) ? Number(sp.dias) : 90;
-  const [p, volume, athlete, photos] = await Promise.all([getProgress(userId, { days }), getVolumeStatus(userId), getAthlete(userId), listPhotos(userId, { limit: 9 })]);
+  const [p, current, athlete, photos, load] = await Promise.all([getProgress(userId, { days }), getVolumeStatus(userId), getAthlete(userId), listPhotos(userId, { limit: 9 }), getLoadStatus(userId)]);
+  // El microciclo en curso puede no tener series aún (recién activado): entonces se miran los últimos 28 días.
+  const volume = current.muscles.some((m) => m.sets > 0) ? current : await getVolumeStatus(userId, { from: addDays(p.to, -27), to: p.to });
+  const volumeFallback = volume !== current;
   const lift = p.lifts.find((l) => l.exerciseId === sp.lift) ?? p.lifts[0] ?? null;
   const w = p.weight;
   const ratios = p.acwr.filter((a) => a.ratio != null);
@@ -40,18 +45,37 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
           <Empty title="Faltan pesadas">Con dos pesadas hay línea; con ocho en dos semanas, tendencia y ritmo semanal fiables. Llevas {w.series.length} en este periodo.</Empty>
         ) : (
           <>
-            <p className="mb-2">
-              <span className="display text-[2.25rem]">{num(w.current)}</span> <span className="muted">kg de tendencia · {signed(w.change)} kg en el periodo</span>
+            <p className="mb-3">
+              <span className="display text-[4.5rem]">{num(w.current)}<span className="unit">kg</span></span>
+              <span className="muted mt-1 block">tendencia · {signed(w.change)} kg en {days} días</span>
             </p>
             <LineChart
               unit="kg"
               label={`Peso: tendencia actual ${num(w.current)} kg, cambio de ${signed(w.change)} kg en ${days} días.`}
               series={[
                 { name: "Pesada", kind: "dots", tone: "faint", points: w.series.map((s) => ({ date: s.date, y: s.kg })) },
-                { name: "Tendencia", kind: "line", tone: "bone", points: w.series.map((s) => ({ date: s.date, y: s.trend })) },
+                { name: "Tendencia", kind: "line", tone: "fg", area: true, points: w.series.map((s) => ({ date: s.date, y: s.trend })) },
               ]}
               target={athlete.goalWeightKg != null ? { y: athlete.goalWeightKg, label: `objetivo ${num(athlete.goalWeightKg)}` } : undefined}
             />
+          </>
+        )}
+      </Section>
+
+      <Section title="Volumen semanal" id="volumen" aside={<span className="fig">{volumeFallback ? "últimos 28 días" : `${day(volume.from)} → ${day(volume.to)}`}</span>}>
+        {volume.muscles.every((m) => m.sets === 0) ? (
+          <Empty title="Sin series efectivas en los últimos 28 días">Cuentan las series a 3 o menos del fallo. Aparecen al registrar la primera sesión del microciclo.</Empty>
+        ) : (
+          <>
+            <div className="slab mb-5 p-4">
+              <BodyMap muscles={volume.muscles} />
+            </div>
+            {volume.muscles.filter((m) => m.sets > 0 || m.mev > 0).sort((a, b) => b.setsPerWeek / Math.max(1, b.mrv) - a.setsPerWeek / Math.max(1, a.mrv)).map((m) => (
+              <VolumeBar key={m.muscleId} name={m.name} sets={m.setsPerWeek} mev={m.mev} mrv={m.mrv} />
+            ))}
+            <p className="micro faint mt-2">Series efectivas llevadas a 7 días. La franja más oscura de cada barra va del mínimo (MEV) al máximo recuperable (MRV).</p>
+            {volume.inDeficit ? <p className="micro accent mt-1">En déficit: las series semanales se quedan en 12-16 por grupo. Se progresa en carga y RIR, no en series.</p> : null}
+            {volume.unclassifiedSets > 0 ? <p className="micro faint mt-1">{volume.unclassifiedSets} series sin grupo muscular (ejercicios sin enlazar).</p> : null}
           </>
         )}
       </Section>
@@ -91,10 +115,33 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
               <LineChart
                 unit="kg, 1RM estimado"
                 label={`${lift.name}: 1RM estimado de ${num(lift.series[0].e1rm)} a ${num(lift.series[lift.series.length - 1].e1rm)} kg en ${lift.sessions} sesiones.`}
-                series={[{ name: "Mejor e1RM de la sesión (estimado)", kind: "line", points: lift.series.map((s) => ({ date: s.date, y: s.e1rm })) }]}
+                series={[{ name: "Mejor e1RM de la sesión (estimado)", kind: "line", area: true, points: lift.series.map((s) => ({ date: s.date, y: s.e1rm })) }]}
               />
             )}
           </>
+        )}
+      </Section>
+
+      <Section title="Más hechos" id="mas-hechos" aside={`${days} días`}>
+        {p.lifts.length === 0 ? (
+          <p className="muted">Sin sesiones cerradas en este periodo.</p>
+        ) : (
+          <ol className="rows">
+            {[...p.lifts].sort((a, b) => b.sessions - a.sessions).slice(0, 8).map((l, k) => (
+              <li key={l.exerciseId}>
+                <Link href={`/libreria/${l.exerciseId}`} className="row items-center">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="display grid h-11 w-11 flex-none place-items-center rounded-xl bg-field text-[1.375rem]" aria-hidden="true">{k + 1}</span>
+                    <span className="truncate font-semibold">{l.name}</span>
+                  </span>
+                  <span className="flex-none text-right">
+                    <span className="fig font-semibold">{l.sessions} {l.sessions === 1 ? "vez" : "veces"}</span>
+                    {l.changePct != null ? <span className={`micro block ${l.changePct > 0 ? "accent" : "faint"}`}>{signed(l.changePct)} % e1RM</span> : null}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
         )}
       </Section>
 
@@ -109,7 +156,7 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
               label="Carga aguda (7 días) frente a crónica (28 días)."
               series={[
                 { name: "Aguda, 7 días", kind: "line", tone: "accent", points: p.acwr.map((a) => ({ date: a.date, y: a.acute })) },
-                { name: "Crónica, 28 días", kind: "line", tone: "bone", points: p.acwr.map((a) => ({ date: a.date, y: a.chronic })) },
+                { name: "Crónica, 28 días", kind: "line", tone: "fg", points: p.acwr.map((a) => ({ date: a.date, y: a.chronic })) },
               ]}
             />
             {ratios.length >= 2 ? (
@@ -126,20 +173,16 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
               <p className="small muted mt-3">El ratio necesita 21 días de historial. Aún no los hay en este periodo.</p>
             )}
             <p className="small muted mt-3">Es un semáforo, no un predictor de lesión: sirve para no subir de golpe, nada más.</p>
-          </>
-        )}
-      </Section>
-
-      <Section title="Volumen semanal" id="volumen" aside={<span className="fig">{day(volume.from)} → {day(volume.to)}</span>}>
-        {volume.muscles.every((m) => m.sets === 0) ? (
-          <Empty title="Sin series efectivas en este microciclo">Cuentan las series a 3 o menos del fallo. Aparecen al registrar la primera sesión del microciclo.</Empty>
-        ) : (
-          <>
-            {volume.muscles.filter((m) => m.sets > 0 || m.mev > 0).map((m) => (
-              <VolumeBar key={m.muscleId} name={m.name} sets={m.setsPerWeek} mev={m.mev} mrv={m.mrv} warn={m.status === "sobre_mrv"} />
-            ))}
-            <p className="micro faint mt-2">Series efectivas llevadas a 7 días. Marca clara: mínimo (MEV). Marca roja: máximo recuperable (MRV).</p>
-            {volume.unclassifiedSets > 0 ? <p className="micro faint mt-1">{volume.unclassifiedSets} series sin grupo muscular (ejercicios sin enlazar).</p> : null}
+            {load.signals.shortSleepNights != null || load.signals.tendonPain != null ? (
+              <div className="rows mt-4">
+                {load.signals.shortSleepNights != null ? (
+                  <Row k="Noches de menos de 7 h" v={<span className="fig">{load.signals.shortSleepNights} de 7</span>} note="3 o más cuentan como señal de descarga" warn={load.signals.shortSleepNights >= 3} />
+                ) : null}
+                {load.signals.tendonPain != null ? (
+                  <Row k="Dolor tendinoso" v={<span className="fig">{load.signals.tendonPain}/10</span>} note="peor de los últimos 3 días · más de 5 es señal" warn={load.signals.tendonPain > 5} />
+                ) : null}
+              </div>
+            ) : null}
           </>
         )}
       </Section>
@@ -147,7 +190,7 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
       <Section title="Adherencia" id="adherencia">
         {p.adherence ? (
           <p>
-            <span className="display text-[2.25rem]">{p.adherence.pct != null ? `${p.adherence.pct} %` : "—"}</span>{" "}
+            <span className="display text-[3rem]">{p.adherence.pct != null ? `${p.adherence.pct} %` : "—"}</span>{" "}
             <span className="muted">· {p.adherence.done} {p.adherence.done === 1 ? "sesión" : "sesiones"} de {num(p.adherence.planned)} previstas</span>
           </p>
         ) : (
@@ -156,7 +199,7 @@ export default async function ProgresoPage({ searchParams }: PageProps<"/progres
         <ul className="mt-3 flex items-end gap-1" aria-label="Sesiones por semana">
           {p.sessionsPerWeek.slice(-16).map((s) => (
             <li key={s.weekStart} className="flex flex-1 flex-col items-center gap-1" title={`Semana del ${day(s.weekStart)}: ${s.done}`}>
-              <span className="w-full bg-bone" style={{ height: `${Math.max(2, s.done * 9)}px`, opacity: s.done ? 1 : 0.25 }} />
+              <span className="w-full rounded-t-[3px] bg-fg" style={{ height: `${Math.max(2, s.done * 9)}px`, opacity: s.done ? 1 : 0.25 }} />
               <span className="fig micro faint">{s.done}</span>
             </li>
           ))}

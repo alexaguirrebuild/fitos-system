@@ -126,8 +126,16 @@ export function Caffeine({ todayMg, maxMg, lateDoses, note }: { todayMg: number;
   );
 }
 
+const LIMIT: Record<string, string> = {
+  suelo: "el suelo de calorías (24 kcal por kg) no deja bajar más",
+  tope: "el déficit no pasa del 25 % del gasto",
+  recomposicion: "en recomposición el déficit medio no pasa de 500 kcal",
+};
+const FAT_METHOD: Record<string, string> = { bia: "bioimpedancia", navy: "fórmula de la Marina", rfm: "fórmula RFM", sin_dato: "sin dato" };
+
 export function Targets({ phase, current }: { phase: string | null; current?: GetTargetsResult | null }) {
   const [res, setRes] = useState<RecalcTargetsResult | null>(null);
+  const [mode, setMode] = useState<"definicion" | "recomposicion">("definicion");
   const { run, pending, error } = useRun();
   const MISSING: Record<string, string> = { peso: "una pesada", altura: "la altura confirmada", fecha_nacimiento: "la fecha de nacimiento" };
   return (
@@ -136,7 +144,14 @@ export function Targets({ phase, current }: { phase: string | null; current?: Ge
         {phase ? `Fase actual: ${phase}. ` : "Sin objetivos calculados. "}
         Calibración hasta tener 14 días con comida y 8 pesadas; después, gasto medido y déficit según tu peso objetivo.
       </p>
-      <button type="button" className="btn btn-block mt-3" disabled={pending} onClick={() => run(() => recalcTargetsAction({}), setRes)}>
+      <div className="seg mt-4" role="group" aria-label="Modo">
+        <button type="button" aria-pressed={mode === "definicion"} onClick={() => setMode("definicion")}>Definición</button>
+        <button type="button" aria-pressed={mode === "recomposicion"} onClick={() => setMode("recomposicion")}>Recomposición</button>
+      </div>
+      <p className="micro faint mt-1.5">
+        {mode === "definicion" ? "Manda el ritmo de pérdida en % del peso por semana." : "Déficit medio de 500 kcal como mucho, para no perder la ganancia de masa magra."}
+      </p>
+      <button type="button" className="btn btn-block mt-3" disabled={pending} onClick={() => run(() => recalcTargetsAction({ mode }), setRes)}>
         {pending ? "Calculando…" : "Recalcular y ver de dónde sale"}
       </button>
       {error ? <p role="alert" className="err mt-2">{error}</p> : null}
@@ -162,9 +177,19 @@ export function Targets({ phase, current }: { phase: string | null; current?: Ge
             <div className="row"><span className="row-k">Día On</span><span className="fig">{int(res.target.on.kcal)} kcal · {int(res.target.on.proteinG)} P · {int(res.target.on.carbsG)} H · {int(res.target.on.fatG)} G</span></div>
             <div className="row"><span className="row-k">Día Off</span><span className="fig">{int(res.target.off.kcal)} kcal · {int(res.target.off.proteinG)} P · {int(res.target.off.carbsG)} H · {int(res.target.off.fatG)} G</span></div>
             <div className="row"><span className="row-k">Gasto</span><span className="fig text-right">{int(res.target.tdee)} kcal<span className="micro faint block">{res.target.tdeeMethod === "medido" ? "medido con tus datos" : res.target.tdeeMethod === "mifflin" ? "estimado (Mifflin)" : "manual"}</span></span></div>
-            <div className="row"><span className="row-k">Ritmo esperado</span><span className="fig">{num(res.expectedKgPerWeek, 2)} kg/sem</span></div>
+            <div className="row">
+              <span className="row-k">Ritmo real</span>
+              <span className="fig text-right">
+                {num(res.effectiveRatePct, 2)} %/sem · {num(res.expectedKgPerWeek, 2)} kg
+                <span className={`micro block ${res.limitedBy !== "tasa" ? "accent" : "faint"}`}>
+                  {res.target.phase === "calibracion" ? "calibración: a mantenimiento hasta medir el gasto" : res.limitedBy !== "tasa" ? `pedido ${num(res.requestedRatePct, 2)} %: ${LIMIT[res.limitedBy] ?? res.limitedBy}` : `el pedido, ${res.mode === "recomposicion" ? "recomposición" : "definición"}`}
+                </span>
+              </span>
+            </div>
+            <div className="row"><span className="row-k">Suelo</span><span className="fig">{int(res.floorKcal)} kcal/día<span className="micro faint block">también el día Off</span></span></div>
+            <div className="row"><span className="row-k">Proteína por comida</span><span className="fig">{int(res.proteinPerMealG)} g<span className="micro faint block">{res.mealsPerDay} comidas · {num(res.proteinPerLeanKg, 1)} g/kg de masa magra</span></span></div>
             <div className="row"><span className="row-k">Calibración</span><span className="fig">{res.calibration.loggedDays}/{res.calibration.needDays} días · {res.calibration.weighIns}/{res.calibration.needWeighIns} pesadas</span></div>
-            {res.bodyFat.pct != null ? <div className="row"><span className="row-k">Grasa</span><span className="fig text-right">{num(res.bodyFat.pct)} %<span className="micro faint block">estimado · {res.bodyFat.method}{res.bodyFat.marginPts != null ? ` · ± ${num(res.bodyFat.marginPts)}` : ""}</span></span></div> : null}
+            {res.bodyFat.pct != null ? <div className="row"><span className="row-k">Grasa</span><span className="fig text-right">{num(res.bodyFat.pct)} %<span className="micro faint block">{res.bodyFat.method === "bia" ? "medido" : "estimado"} · {FAT_METHOD[res.bodyFat.method] ?? res.bodyFat.method}{res.bodyFat.marginPts != null ? ` · ± ${num(res.bodyFat.marginPts)}` : ""}</span></span></div> : null}
           </div>
           <ul className="small muted mt-3 list-disc space-y-1 pl-5">
             {res.explain.map((e) => <li key={e}>{e}</li>)}

@@ -7,7 +7,7 @@ export function PageHeader({ title, sub, back, action }: { title: string; sub?: 
   return (
     <header className="mb-6">
       {back ? (
-        <Link href={back.href} className="-ml-2 mb-1 inline-flex min-h-12 items-center gap-1 pr-3 text-bone-2">
+        <Link href={back.href} className="-ml-2 mb-1 inline-flex min-h-12 items-center gap-1 pr-3 text-fg-2">
           <IconBack width={20} height={20} />
           <span className="small">{back.label}</span>
         </Link>
@@ -44,7 +44,7 @@ export function Row({ k, v, note, href, warn }: { k: ReactNode; v: ReactNode; no
         <span className={warn ? "accent" : undefined}>{v}</span>
         {note ? <span className="micro faint block">{note}</span> : null}
       </span>
-      {href ? <IconChevron className="flex-none text-bone-3" /> : null}
+      {href ? <IconChevron className="flex-none text-fg-3" /> : null}
     </>
   );
   return href ? (

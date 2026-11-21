@@ -99,7 +99,7 @@ export default async function EntrenoPage() {
                         {w.srpe != null ? ` · sRPE ${num(w.srpe)}` : ""}
                       </span>
                     </span>
-                    <IconChevron className="flex-none text-bone-3" />
+                    <IconChevron className="flex-none text-fg-3" />
                   </Link>
                 </li>
               ))}

@@ -1,9 +1,9 @@
-/** Iconos en línea: trazo de 1,5 px, 24 × 24, sin relleno. Decorativos por defecto (aria-hidden). */
+/** Iconos en línea: trazo de 1,75 px redondeado, 24 × 24, sin relleno. Decorativos por defecto (aria-hidden). */
 import type { SVGProps } from "react";
 
 function Base({ children, ...p }: SVGProps<SVGSVGElement>) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true" focusable="false" {...p}>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" {...p}>
       {children}
     </svg>
   );
@@ -99,5 +99,12 @@ export const IconSwap = (p: SVGProps<SVGSVGElement>) => (
 export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
   <Base {...p}>
     <path d="M12 5v14M5 12h14" />
+  </Base>
+);
+
+export const IconPlan = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 9h18M9 9v11M15 9v11" />
   </Base>
 );

@@ -32,7 +32,7 @@ export default async function NutricionPage() {
           <div>
             <div className="flex items-baseline justify-between gap-3">
               <p>
-                <span className="display text-[2.5rem]">{int(Math.max(0, d.remaining.kcal))}</span> <span className="muted">kcal {d.remaining.kcal < 0 ? `· ${int(-d.remaining.kcal)} de más` : "restantes"}</span>
+                <span className="display text-[4.5rem]">{int(Math.max(0, d.remaining.kcal))}</span> <span className="muted">kcal {d.remaining.kcal < 0 ? `· ${int(-d.remaining.kcal)} de más` : "restantes"}</span>
               </p>
               <p className="fig small muted">{int(d.totals.kcal)} / {int(t.kcal)}</p>
             </div>
@@ -41,7 +41,7 @@ export default async function NutricionPage() {
           <div>
             <div className="flex items-baseline justify-between gap-3">
               <p>
-                <span className="display text-[2rem]">{int(Math.max(0, d.remaining.proteinG))}</span> <span className="muted">g de proteína {d.remaining.proteinG <= 0 ? "· cubierta" : "restantes"}</span>
+                <span className="display text-[3rem]">{int(Math.max(0, d.remaining.proteinG))}</span> <span className="muted">g de proteína {d.remaining.proteinG <= 0 ? "· cubierta" : "restantes"}</span>
               </p>
               <p className="fig small muted">{int(d.totals.proteinG)} / {int(t.proteinG)} g</p>
             </div>
@@ -65,7 +65,7 @@ export default async function NutricionPage() {
           MEALS.filter((m) => d.byMeal[m]).map((m) => (
             <div key={m} className="mb-4">
               <div className="flex items-baseline justify-between border-b border-line-strong pb-1.5">
-                <h3 className="font-medium">{MEAL_LABEL[m]}</h3>
+                <h3 className="font-bold">{MEAL_LABEL[m]}</h3>
                 <span className="fig small muted">{int(d.byMeal[m]!.kcal)} kcal · {int(d.byMeal[m]!.proteinG)} g P</span>
               </div>
               <ul>
