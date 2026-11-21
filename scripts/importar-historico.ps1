@@ -1,11 +1,12 @@
 # Importa en producción el histórico de la app antigua (SISTEMA-ALEX-APP): sesiones, series y check-ins.
 # Pide la contraseña de la base sin mostrarla y no la guarda en ningún sitio. Es idempotente: repetirlo no duplica.
+param([string]$Email)
 $ErrorActionPreference = "Stop"
 Set-Location "$HOME\Documents\sistema-fisico-wt-hc"
 
 $export = "$HOME\Documents\VIDA\_datos\supabase-2026-11-15"
 if (-not (Test-Path "$export\entrenos.json")) { throw "No encuentro $export\entrenos.json" }
-$email = Read-Host "Tu email de la app (el mismo con el que entras)"
+$email = if ($Email) { $Email } else { Read-Host "Tu email de la app (el mismo con el que entras)" }
 
 $sec = Read-Host "Contraseña de la base de datos de Supabase" -AsSecureString
 $pw = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))

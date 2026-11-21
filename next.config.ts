@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // App privada y por usuario: todo es dinámico. Sin Cache Components.
   serverExternalPackages: ["@electric-sql/pglite", "pg"],
+  // Importar el histórico (Ajustes) sube el export de la app antigua: ~0,3 MB hoy, margen hasta 4 MB.
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   async headers() {
     return [
       // El service worker nunca se sirve de la caché del navegador: así las versiones nuevas llegan.

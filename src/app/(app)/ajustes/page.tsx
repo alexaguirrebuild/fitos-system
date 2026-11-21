@@ -13,9 +13,11 @@ import { getAthlete, listSchedule } from "@/server/services/athlete";
 import { listMuscleGroups } from "@/server/services/library";
 import { getActivePlan, listProgramTemplates } from "@/server/services/plan";
 import { todayIn } from "@/server/time";
-import { deloadAction, profileAction, programAction, revokeGrantAction, volumeAction } from "./actions";
+import { deloadAction, importHistoryAction, profileAction, programAction, revokeGrantAction, volumeAction } from "./actions";
 
 export const metadata: Metadata = { title: "Ajustes" };
+/** Importar el histórico son ~2.000 inserciones contra Supabase: margen de sobra. */
+export const maxDuration = 300;
 
 const WEEKDAY = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
@@ -153,6 +155,22 @@ export default async function AjustesPage() {
             ))}
           </ul>
         )}
+      </Section>
+
+      <Section title="Importar histórico" id="historico">
+        <p className="small muted">
+          El export de tu app anterior (<span className="fig text-fg">entrenos.json</span> y, si lo tienes, <span className="fig text-fg">estado.json</span>). Con él, la progresión, el volumen y el RIR parten de lo que ya has hecho. Reimportar actualiza; no duplica.
+        </p>
+        <FormAction action={importHistoryAction} submit="Importar" className="mt-3">
+          <div className="field">
+            <label htmlFor="imp-entrenos">entrenos.json</label>
+            <input id="imp-entrenos" name="entrenos" type="file" accept="application/json,.json" className="input" required />
+          </div>
+          <div className="field mt-2">
+            <label htmlFor="imp-estado">estado.json (opcional: check-ins)</label>
+            <input id="imp-estado" name="estado" type="file" accept="application/json,.json" className="input" />
+          </div>
+        </FormAction>
       </Section>
 
       <Section title="Conexiones" id="conexiones">
