@@ -48,6 +48,8 @@ export async function POST(request: Request) {
     const result = await ingestHcWebhook(who.userId, body);
     await audit(who.userId, `ingest:${who.tokenId}`, "ingest.hc_webhook", {
       processed: result.health.processed, foods: result.foods.logged, errors: result.health.errors + result.foods.errors.length, days: result.health.days,
+      // Tipos que llegan y no se importan (p. ej. «nutrition sin kcal ni macros»): para saber si falta el dato o lo descartamos.
+      ...(result.skipped.length && { skipped: result.skipped.slice(0, 20) }),
     }).catch(() => {});
     return json({ ok: true, ...result });
   } catch (e) {
