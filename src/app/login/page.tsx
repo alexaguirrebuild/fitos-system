@@ -16,7 +16,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <main className="page-bare" style={{ minHeight: "100dvh", display: "grid", alignContent: "center" }}>
-      <h1 className="display text-[2.75rem]">Sistema Físico</h1>
+      <h1 className="display text-[2.75rem]">FITOS SYSTEM</h1>
       <p className="muted mt-3">Entra con tu cuenta para ver tu entreno y registrar.</p>
       <LoginForm next={next} />
     </main>

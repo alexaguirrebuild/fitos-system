@@ -9,7 +9,7 @@ import { AppError, notFound } from "@/server/errors";
 import { todayIn } from "@/server/time";
 import { Id, IsoDate, IsoDateTime, athleteTz, parseInput, toIso } from "./annotations";
 
-export const DRIVE_APP_FOLDER = "Sistema Físico";
+/** La raíz es DRIVE_ROOT_FOLDER_ID (la carpeta «FITOS SYSTEM» que creó la app): las rutas empiezan en el macrociclo. */
 export const PHOTO_POSES = ["frontal", "lateral", "trasera", "otra"] as const;
 
 /* ------------------------------- Rutas en Drive ------------------------------- */
@@ -31,7 +31,7 @@ const cleanExt = (ext: string | undefined, fallback: string) => (ext ?? "").toLo
 export type MediaPath = { folders: string[]; fileName: string; path: string };
 
 export function buildVideoPath(i: { macrocycleName: string; exerciseName: string; date: string; kg?: number | null; reps?: number | null; ext?: string }): MediaPath {
-  const folders = [DRIVE_APP_FOLDER, folderName(i.macrocycleName, "Sin macrociclo"), "Vídeos", folderName(i.exerciseName, "Ejercicio")];
+  const folders = [folderName(i.macrocycleName, "Sin macrociclo"), "Vídeos", folderName(i.exerciseName, "Ejercicio")];
   const kg = i.kg != null && Number.isFinite(i.kg) ? `${Math.round(i.kg * 100) / 100}kg` : "";
   const reps = i.reps != null && Number.isFinite(i.reps) ? `x${Math.round(i.reps)}` : "";
   const fileName = `${[i.date, fileSlug(i.exerciseName, "ejercicio"), kg + reps].filter(Boolean).join("_")}.${cleanExt(i.ext, "mp4")}`;
@@ -39,7 +39,7 @@ export function buildVideoPath(i: { macrocycleName: string; exerciseName: string
 }
 
 export function buildPhotoPath(i: { macrocycleName: string; date: string; pose: string; ext?: string }): MediaPath {
-  const folders = [DRIVE_APP_FOLDER, folderName(i.macrocycleName, "Sin macrociclo"), "Fotos"];
+  const folders = [folderName(i.macrocycleName, "Sin macrociclo"), "Fotos"];
   const fileName = `${i.date}_${fileSlug(i.pose, "otra")}.${cleanExt(i.ext, "jpg")}`;
   return { folders, fileName, path: [...folders, fileName].join("/") };
 }
@@ -188,7 +188,7 @@ export type UploadVideoResult = { video: Video; status: UploadStatus; message: s
 
 const NOT_CONFIGURED = "Drive no está configurado: queda apuntado como pendiente, pero el fichero NO se ha guardado. Súbelo otra vez cuando Drive esté conectado.";
 
-/** Sube el vídeo a Drive (Sistema Físico/<macrociclo>/Vídeos/<ejercicio>/) y guarda sus metadatos. */
+/** Sube el vídeo a Drive (FITOS SYSTEM/<macrociclo>/Vídeos/<ejercicio>/) y guarda sus metadatos. */
 export async function uploadVideo(userId: string, meta: RegisterVideoInput, file: UploadFile, db?: Db, opts: DriveOptions = {}): Promise<UploadVideoResult> {
   const i = parseInput(RegisterVideoInput, meta);
   const ctx = await withUser(userId, (tx) => videoContextTx(tx, i), db);
@@ -267,7 +267,7 @@ export async function registerPhoto(userId: string, input: RegisterPhotoInput, d
 
 export type UploadPhotoResult = { photo: ProgressPhoto; status: UploadStatus; message: string; missing: string[] };
 
-/** Sube la foto a Drive (Sistema Físico/<macrociclo>/Fotos/AAAA-MM-DD_<pose>.jpg) y la registra con registerPhoto. */
+/** Sube la foto a Drive (FITOS SYSTEM/<macrociclo>/Fotos/AAAA-MM-DD_<pose>.jpg) y la registra con registerPhoto. */
 export async function uploadPhoto(userId: string, meta: RegisterPhotoInput, file: UploadFile, db?: Db, opts: DriveOptions = {}): Promise<UploadPhotoResult> {
   const i = parseInput(RegisterPhotoInput, meta);
   const ctx = await withUser(userId, async (tx) => ({ date: i.date ?? todayIn(await athleteTz(tx)), macro: await activeMacrocycleTx(tx) }), db);

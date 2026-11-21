@@ -5,10 +5,10 @@ import { notFound } from "@/server/errors";
 import { DEFAULT_TZ, todayIn } from "@/server/time";
 import { defineTool, type AnyTool } from "./registry";
 
-export const SERVER_NAME = "sistema-fisico";
+export const SERVER_NAME = "fitos-system";
 export const SERVER_VERSION = "0.1.0";
 
-export const SERVER_GUIDE = `Sistema físico: entrenamiento y nutrición de un solo atleta. Todo lo que ves y escribes es suyo.
+export const SERVER_GUIDE = `FITOS SYSTEM: entrenamiento y nutrición de un solo atleta. Todo lo que ves y escribes es suyo.
 
 Flujo recomendado:
 1. Empieza por get_today: dice la única cosa que toca ahora (nextAction), la sesión de hoy con sus cargas, la comida, los pasos y el tobillo.

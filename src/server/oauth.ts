@@ -691,7 +691,7 @@ export function protectedResourceMetadata() {
     authorization_servers: [issuer()],
     scopes_supported: [...SCOPE_NAMES],
     bearer_methods_supported: ["header"],
-    resource_name: "Sistema físico · entrenamiento y nutrición",
+    resource_name: "FITOS SYSTEM · entrenamiento y nutrición",
   };
 }
 

@@ -4,7 +4,7 @@ Investigado el 21-nov-2026. Cada afirmación lleva **VERIFICADO** (leído hoy, c
 
 ## 1. Estructura propuesta
 
-El código ya fija parte de la ruta (`src/server/services/media.ts`): todo cuelga de `DRIVE_ROOT_FOLDER_ID` → `Sistema Físico/<macrociclo>/…` — VERIFICADO (`DRIVE_APP_FOLDER`, `buildVideoPath`, `buildPhotoPath`).
+El código ya fija parte de la ruta (`src/server/services/media.ts`): todo cuelga de `DRIVE_ROOT_FOLDER_ID` → `<macrociclo>/…` — VERIFICADO (`DRIVE_APP_FOLDER`, `buildVideoPath`, `buildPhotoPath`).
 
 ```
 <DRIVE_ROOT_FOLDER_ID>/

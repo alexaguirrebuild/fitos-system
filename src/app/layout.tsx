@@ -8,9 +8,9 @@ const grotesk = Space_Grotesk({ variable: "--font-grotesk", subsets: ["latin"], 
 const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Sistema Físico", template: "%s · Sistema Físico" },
+  title: { default: "FITOS SYSTEM", template: "%s · FITOS SYSTEM" },
   description: "Entreno, comida y recuperación en un solo sitio.",
-  applicationName: "Sistema Físico",
+  applicationName: "FITOS SYSTEM",
   appleWebApp: { capable: true, title: "Físico", statusBarStyle: "black-translucent" },
   icons: {
     icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
