@@ -108,7 +108,7 @@ No apuntes HC Webhook a `/api/ingest/health`: ese espera `samples` y daría 400.
 4. Instalar HC Webhook: https://github.com/mcnaveen/health-connect-webhook/releases → `app-foss-release.apk` (permitir «instalar apps desconocidas» solo para el navegador y quitarlo después).
 5. Abrir HC Webhook → conceder permisos de lectura de Health Connect: pasos, FC, FC en reposo, HRV, sueño, ejercicio, calorías activas, peso; y **lectura en segundo plano**.
 6. Ajustes de HC Webhook → **Payload timestamps: Local time**.
-7. Webhooks → añadir: URL `https://<dominio-de-la-app>/api/ingest/hc-webhook` (cuando exista el adaptador), formato **JSON**, cabecera `Authorization` = `Bearer fit_ing_…` (crea el token en la app; no lo pegues en chats).
-8. Programar sincronización cada **1 h** (o 15 min si lo permite) y pulsar **Test**: debe dar 2xx.
+7. Webhooks → añadir: URL `https://fitos-system.vercel.app/api/ingest/hc-webhook`, formato **JSON**, cabecera `Authorization` = `Bearer fit_ing_…` (el token se crea en **Cardio → Conectar el reloj**; no lo pegues en chats). Escribir llave y valor no basta: hay que pulsar **Agregar encabezado** y luego **Guardar**.
+8. Programar sincronización cada **1 h** y probar con **Sincronizar ahora**. **No usar «Probar Webhook»**: manda un ejemplo con datos inventados (75 kg, «Oatmeal», «Chicken bowl», carrera de 60 min) con origen `com.google.android.apps.fitness` y sin `metadata.id`, y la app lo guarda como real. Pasó el 21-nov-2026 y se limpió a mano.
 9. Ajustes del S24 → Batería → HC Webhook y OHealth en **Sin restricciones**; si no, Samsung mata las tareas en segundo plano (SIN VERIFICAR para esta app; es el comportamiento conocido de One UI).
 10. Al día siguiente, comprobar en la app que `daily_activity` tiene pasos, FC en reposo y sueño.
