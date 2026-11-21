@@ -313,9 +313,12 @@ export async function validateAuthorizeRequest(params: AuthorizeParams, db?: Db)
   if (params.response_type !== "code") return fail("unsupported_response_type", "only response_type=code is supported");
   if (!params.code_challenge || !CHALLENGE_RE.test(params.code_challenge)) return fail("invalid_request", "PKCE code_challenge required");
   if (params.code_challenge_method !== "S256") return fail("invalid_request", "code_challenge_method must be S256");
-  const requested = [...new Set((params.scope ?? "").split(/\s+/).filter(Boolean))];
-  if (!requested.every(isScope)) return fail("invalid_scope", `supported scopes: ${SCOPE_NAMES.join(" ")}`);
-  const scope = requested.length ? SCOPE_NAMES.filter((s) => requested.includes(s)) : [DEFAULT_SCOPE];
+  // Espacios según RFC 6749, pero hay clientes (Meta) que separan con comas o «+», o añaden scopes genéricos
+  // (offline_access, openid…). Los desconocidos se ignoran; solo se rechaza si no queda ninguno nuestro.
+  const requested = [...new Set((params.scope ?? "").split(/[\s,+]+/).filter(Boolean))];
+  const known = SCOPE_NAMES.filter((s) => requested.includes(s));
+  if (requested.length && !known.length) return fail("invalid_scope", `supported scopes: ${SCOPE_NAMES.join(" ")}`);
+  const scope = known.length ? known : [DEFAULT_SCOPE];
   // RFC 8707: el token es para un recurso. Sin `resource` se entiende el MCP (clientes antiguos).
   // En este origen solo hay un recurso (el MCP): se acepta cualquier ruta del mismo origen
   // (el cliente de Meta, por ejemplo, manda el origen o «/mcp») y el token queda ligado a /api/mcp.
