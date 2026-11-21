@@ -124,7 +124,7 @@ const listMealTemplatesTool = defineTool({
 const logFoodTool = defineTool({
   name: "log_food",
   title: "Anotar comida",
-  description: "Úsala cuando el atleta diga lo que ha comido. Necesita un alimento del catálogo (food por nombre, foodId o barcode) con sus gramos, o bien las kcal y los macros a mano. Nunca inventa calorías: si faltan gramos o macros falla diciendo qué falta; si el nombre encaja con varios alimentos devuelve los candidatos. Devuelve lo anotado y cómo queda el día.",
+  description: "Úsala cuando el atleta diga, dicte o fotografíe lo que ha comido. Dos vías: (1) alimento del catálogo (food por nombre, foodId o barcode) con sus gramos; (2) comida fuera del catálogo (restaurante, foto, «7 porciones de pizza»): pon en `description` qué fue y en qué te basas («7 porciones de pizza mediana Domino's, ~250 kcal/porción»), tu estimación de `kcal` y, si puedes, proteinG, carbsG y fatG. Queda marcado como estimado; díselo al atleta con la cifra. Si el nombre encaja con varios alimentos del catálogo devuelve los candidatos. Devuelve lo anotado y cómo queda el día.",
   scope: "mcp:log",
   readOnly: false,
   input: LogFoodInput.extend({

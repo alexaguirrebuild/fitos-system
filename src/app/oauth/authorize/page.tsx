@@ -65,6 +65,7 @@ async function Consent({ searchParams }: { searchParams: SearchParams }) {
     return <Problem message={check.description} />;
   }
 
+  console.info("[oauth/authorize] pantalla", JSON.stringify({ client: check.client.clientName, pedido: params.scope ?? null, concedible: check.scope }));
   const consent = signConsent({
     userId,
     clientId: check.client.clientId,

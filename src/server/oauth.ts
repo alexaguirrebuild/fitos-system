@@ -103,9 +103,11 @@ type ClientRow = {
   grant_types: string[];
   token_endpoint_auth_method: string;
   client_secret_hash: string | null;
+  /** Scopes que el cliente declaró al registrarse (metadata.scope). */
+  registered_scope?: string | null;
 };
 const CLIENT_COLS =
-  "client_id, client_name, to_jsonb(redirect_uris) as redirect_uris, to_jsonb(grant_types) as grant_types, token_endpoint_auth_method, client_secret_hash";
+  "client_id, client_name, to_jsonb(redirect_uris) as redirect_uris, to_jsonb(grant_types) as grant_types, token_endpoint_auth_method, client_secret_hash, metadata->>'scope' as registered_scope";
 
 const toClient = (r: ClientRow): OAuthClient => ({
   clientId: r.client_id,
@@ -316,9 +318,14 @@ export async function validateAuthorizeRequest(params: AuthorizeParams, db?: Db)
   // Espacios según RFC 6749, pero hay clientes (Meta) que separan con comas o «+», o añaden scopes genéricos
   // (offline_access, openid…). Los desconocidos se ignoran; solo se rechaza si no queda ninguno nuestro.
   const requested = [...new Set((params.scope ?? "").split(/[\s,+]+/).filter(Boolean))];
-  const known = SCOPE_NAMES.filter((s) => requested.includes(s));
-  if (requested.length && !known.length) return fail("invalid_scope", `supported scopes: ${SCOPE_NAMES.join(" ")}`);
-  const scope = known.length ? known : [DEFAULT_SCOPE];
+  // Lo pedido manda (si un cliente pide solo lectura, solo lectura). Si no pide ninguno de los nuestros,
+  // vale lo que declaró al registrarse (el cliente de Meta registra «mcp:read mcp:log»); si tampoco, lectura.
+  // El dueño ve los scopes en la pantalla de consentimiento antes de aprobar.
+  const asked = SCOPE_NAMES.filter((s) => requested.includes(s));
+  const registered = (row.registered_scope ?? "").split(/\s+/).filter(Boolean);
+  if (requested.length && !asked.length && !registered.some(isScope)) return fail("invalid_scope", `supported scopes: ${SCOPE_NAMES.join(" ")}`);
+  const fromRegistration = SCOPE_NAMES.filter((s) => registered.includes(s));
+  const scope = asked.length ? asked : fromRegistration.length ? fromRegistration : [DEFAULT_SCOPE];
   // RFC 8707: el token es para un recurso. Sin `resource` se entiende el MCP (clientes antiguos).
   // En este origen solo hay un recurso (el MCP): se acepta cualquier ruta del mismo origen
   // (el cliente de Meta, por ejemplo, manda el origen o «/mcp») y el token queda ligado a /api/mcp.
