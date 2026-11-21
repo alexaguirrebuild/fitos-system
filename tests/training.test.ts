@@ -253,6 +253,16 @@ describe("entreno: de la sesión a la progresión", () => {
     expect(block(v, "curl-biceps").suggestion).toMatchObject({ rule: "sumar_rep", kg: 12, repsTarget: [12, 12, 12] });
     expect(block(v, "curl-biceps").plates).toBeNull();
     expect(v.next).toMatchObject({ exerciseName: "Press banca", kg: 82.5, reps: 4 });
+
+    // En déficit, los compuestos llevan un RIR más; el curl (aislamiento) no cambia.
+    await withUser(a, (tx) => tx.query(
+      `insert into fit.nutrition_targets (valid_from, phase, tdee, tdee_method, avg_kcal, on_kcal, on_protein_g, on_carbs_g, on_fat_g, off_kcal, off_protein_g, off_carbs_g, off_fat_g)
+       values ('2026-11-01', 'deficit', 2700, 'medido', 2200, 2300, 180, 220, 70, 2160, 180, 185, 70)`), db);
+    const cut = await getWorkoutView(a, v.workout.id, db);
+    expect(block(cut, "press-banca").suggestion).toMatchObject({ rule: "subir_carga", kg: 82.5, rirTarget: 3 });
+    expect(block(cut, "press-banca").suggestion!.why).toMatch(/En déficit/);
+    expect(block(cut, "curl-biceps").suggestion).toMatchObject({ rule: "sumar_rep", rirTarget: 1 });
+    await withUser(a, (tx) => tx.query("delete from fit.nutrition_targets"), db);
   });
 
   it("detecta el récord de e1RM y lo anota al cerrar", async () => {

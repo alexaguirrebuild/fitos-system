@@ -119,7 +119,14 @@ export type Suggestion = {
   stalled: boolean;
 };
 
-export type DayContext = { readiness?: number | null; deload?: boolean };
+export type DayContext = {
+  readiness?: number | null;
+  deload?: boolean;
+  /** Fase de déficit: los compuestos van con una repetición más en reserva (RIR-02 del reglamento). */
+  inDeficit?: boolean;
+  /** No progresar hoy (p. ej., el tobillo dolió más a la mañana siguiente que antes de la última sesión de pierna). */
+  holdProgression?: string | null;
+};
 
 const workingLoad = (s: PastSession) => (s.sets.length ? s.sets[0].kg : 0);
 const atLoad = (s: PastSession, kg: number) => s.sets.filter((x) => x.kg === kg);
@@ -192,6 +199,15 @@ export function suggestNext(history: PastSession[], rx: Prescription, ctx: DayCo
     const keep = Array.from({ length: rx.sets }, (_, i) => Math.max(rx.repMin, Math.min(rx.repMax, ws[i]?.reps ?? rx.repMin)));
     out = { ...out, rule: "readiness_bajo", kg: w, repsTarget: keep, rirTarget: rx.rirTarget + 1,
       why: `Readiness ${readiness}: misma carga y repeticiones que la última vez, con una más en reserva. Hoy no se buscan marcas.` };
+  }
+  // Freno externo (tobillo): ni carga ni repeticiones nuevas. Se repite lo de la última vez.
+  if (ctx.holdProgression && (out.rule === "subir_carga" || out.rule === "sumar_rep")) {
+    const keep = Array.from({ length: rx.sets }, (_, i) => Math.max(rx.repMin, Math.min(rx.repMax, ws[i]?.reps ?? rx.repMin)));
+    out = { ...out, rule: "repetir", kg: w, repsTarget: keep, why: `${ctx.holdProgression} Repite ${w} kg y las mismas repeticiones, sin progresar.` };
+  }
+  // En déficit, los básicos se alejan un punto del fallo: la fuerza se mantiene y la fatiga cuesta más (RIR-02; PMID 38970765, 36334240).
+  if (ctx.inDeficit && rx.kind === "compuesto" && out.rirTarget === rx.rirTarget) {
+    out = { ...out, rirTarget: rx.rirTarget + 1, why: `${out.why} En déficit, los básicos van con ${rx.rirTarget + 1} en reserva.` };
   }
   if (stalled) out = { ...out, stalled: true,
     why: out.why + " Llevas 3 sesiones sin sumar: revisa sueño, estrés, calorías del día y orden del ejercicio antes de tocar el volumen." };

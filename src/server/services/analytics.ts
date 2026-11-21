@@ -35,6 +35,7 @@ const ACWR_LABEL: Record<AcwrZone, string> = {
   optimo: "Carga en rango.",
   precaucion: "Carga subiendo rápido. No añadas más esta semana.",
   pico: "Pico de carga. Recorta volumen unos días.",
+  pico_extremo: "Pico extremo (más del doble de lo habitual). Revisa qué ha pasado y recorta ya.",
 };
 
 export type LoadStatus = {
@@ -57,6 +58,10 @@ export type LoadStatus = {
     readiness7dAvg: number | null;
     maxWeeklyStress: number | null;
     examPeriod: boolean;
+    /** Noches de los últimos 7 días con menos de 7 h de sueño (de las que tienen horas anotadas). */
+    shortSleepNights: number | null;
+    /** Peor dolor tendinoso o articular de los últimos 3 días (lesiones abiertas y check-in de tobillo). */
+    tendonPain: number | null;
   };
 };
 
@@ -106,14 +111,32 @@ export async function loadStatusTx(tx: Tx, date: string): Promise<LoadStatus> {
   const examPeriod = await isExamPeriodTx(tx, date);
   const readiness7dAvg = r7?.avg != null ? round1(Number(r7.avg)) : null;
   const maxWeeklyStress = muscleStress.length ? muscleStress[0].value : null;
-  const d = deloadDecision({ e1rmDropping: e1rmDropping.length > 0, readiness7dAvg, maxWeeklyStress, acwrRatio: a.ratio, externalStress: examPeriod });
+  // Horas de cada noche: lo que diga el check-in y, si no, lo que midió el reloj (daily_activity, por Health Connect).
+  const [sleep] = await tx.query<{ short: number; logged: number }>(
+    `select count(*) filter (where h < 7)::int as short, count(h)::int as logged from (
+       select coalesce(c.sleep_hours, a.sleep_minutes / 60.0) as h
+       from (select date, sleep_hours from fit.checkins where sleep_hours is not null and date > $1 and date <= $2) c
+       full join (select date, sleep_minutes from fit.daily_activity where sleep_minutes is not null and date > $1 and date <= $2) a
+         on a.date = c.date
+     ) x`, [addDays(date, -7), date]);
+  const shortSleepNights = sleep?.logged ? sleep.short : null;
+  const [tendon] = await tx.query<{ pain: number | null }>(
+    `select greatest(
+       (select max(l.pain) from fit.injury_logs l join fit.injuries i on i.id = l.injury_id
+         where i.status <> 'cerrada' and l.date > $1 and l.date <= $2),
+       (select max(ankle_pain) from fit.checkins where ankle_pain is not null and date > $1 and date <= $2)) as pain`,
+    [addDays(date, -3), date]);
+  const tendonPain = tendon?.pain != null ? Number(tendon.pain) : null;
+  const d = deloadDecision({
+    e1rmDropping: e1rmDropping.length > 0, readiness7dAvg, maxWeeklyStress, acwrRatio: a.ratio, externalStress: examPeriod, shortSleepNights, tendonPain,
+  });
   return {
     date,
     acwr: { acute: a.acute, chronic: a.chronic, ratio: a.ratio, zone: a.zone, days: a.days, reliable: a.reliable,
       label: a.zone ? ACWR_LABEL[a.zone] : a.days ? `Faltan ${Math.max(1, 21 - a.days)} días de historial para que el ratio diga algo.` : "Sin sesiones registradas." },
     muscleStress,
     deload: { deload: d.deload, signals: d.signals, plan: d.plan, maintenance: d.maintenance },
-    signals: { e1rmDropping, readiness7dAvg, maxWeeklyStress, examPeriod },
+    signals: { e1rmDropping, readiness7dAvg, maxWeeklyStress, examPeriod, shortSleepNights, tendonPain },
   };
 }
 
@@ -147,7 +170,11 @@ export type VolumeRow = {
   advice: { action: "mantener" | "bajar" | "subir" | "revisar"; why: string };
 };
 
-export type VolumeStatusResult = { from: string; to: string; days: number; microcycleId: string | null; muscles: VolumeRow[]; unclassifiedSets: number };
+export type VolumeStatusResult = {
+  from: string; to: string; days: number; microcycleId: string | null; muscles: VolumeRow[]; unclassifiedSets: number;
+  /** Fase de nutrición vigente en `to` es déficit: las series se congelan en 12-16 por grupo. */
+  inDeficit: boolean;
+};
 
 export async function getVolumeStatus(userId: string, input?: GetVolumeStatusInput, db?: Db): Promise<VolumeStatusResult> {
   const i = parseInput(GetVolumeStatusInput, input ?? {});
@@ -168,6 +195,9 @@ export async function getVolumeStatus(userId: string, input?: GetVolumeStatusInp
         [from, to, microcycleId] = [plan.microcycle.startDate, plan.microcycle.endDate, plan.microcycle.id];
     }
     const days = diffDays(from, to) + 1;
+    const [nt] = await tx.query<{ phase: string }>(
+      "select phase from fit.nutrition_targets where valid_from <= $1::date order by valid_from desc limit 1", [to]);
+    const inDeficit = nt?.phase === "deficit";
 
     const rows = await tx.query<{ exerciseId: string; primaryMuscle: string | null; secondaryMuscles: string[]; kg: number; reps: number; rir: number | null }>(
       `select s.exercise_id as "exerciseId", e.primary_muscle as "primaryMuscle", e.secondary_muscles as "secondaryMuscles", s.kg, s.reps, s.rir
@@ -194,9 +224,11 @@ export async function getVolumeStatus(userId: string, input?: GetVolumeStatusInp
       const rate = progressRate(pairs);
       const status = volumeStatus(setsPerWeek, m.mev, m.mrv);
       return { muscleId: m.id, name: m.name, region: m.region, sets, setsPerWeek, mev: m.mev, mrv: m.mrv, status,
-        progressRate: rate == null ? null : round2(rate), advice: volumeAdvice(rate, status) };
+        progressRate: rate == null ? null : round2(rate),
+        // En déficit solo se aplica la congelación a los grupos que se entrenan: uno sin series no tiene que llegar a 12.
+        advice: volumeAdvice(rate, status, inDeficit && setsPerWeek > 0 ? { setsPerWeek } : null) };
     });
-    return { from, to, days, microcycleId, muscles, unclassifiedSets };
+    return { from, to, days, microcycleId, muscles, unclassifiedSets, inDeficit };
   }, db);
 }
 

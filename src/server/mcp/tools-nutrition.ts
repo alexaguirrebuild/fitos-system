@@ -250,7 +250,8 @@ const recalcTargetsTool = defineTool({
     return {
       summary: `${r.saved ? "Objetivos guardados" : "Objetivos sin cambio relevante (no se guarda nada nuevo)"} desde el ${t.validFrom}, fase ${t.phase}: día On ${macrosText(t.on)}; día Off ${macrosText(t.off)}. Gasto ${r0(t.tdee)} kcal (${t.tdeeMethod}).`,
       saved: r.saved, date: r.date, phase: t.phase, tdee: r0(t.tdee), tdeeMethod: t.tdeeMethod, on: roundMacros(t.on), off: roundMacros(t.off),
-      expectedKgPerWeek: r1(r.expectedKgPerWeek), trainDaysPerWeek: r.trainDaysPerWeek, calibration: r.calibration, explain: r.explain.slice(0, 12), warnings: r.warnings,
+      expectedKgPerWeek: r1(r.expectedKgPerWeek), mode: r.mode, requestedRatePct: r.requestedRatePct, effectiveRatePct: r.effectiveRatePct, limitedBy: r.limitedBy,
+      floorKcal: r.floorKcal, proteinPerLeanKg: r.proteinPerLeanKg, proteinPerMealG: r.proteinPerMealG, trainDaysPerWeek: r.trainDaysPerWeek, calibration: r.calibration, explain: r.explain.slice(0, 12), warnings: r.warnings,
     };
   },
 });

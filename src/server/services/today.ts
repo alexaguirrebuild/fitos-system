@@ -15,7 +15,7 @@ import { getLoadStatus } from "./analytics";
 import { IsoDate, ankleStatusTx, getAnkleStatus, getAthleteTx, getOnboardingStatus, parseInput, type OnboardingField } from "./athlete";
 import { getCardioWeek } from "./cardio";
 import { alternativesIn, loadLibraryTx } from "./library";
-import { getNutritionDay, type DayType, type Macros, type NutritionPhase } from "./nutrition";
+import { getNutritionDay, inDeficitTx, type DayType, type Macros, type NutritionPhase } from "./nutrition";
 import { activePlanTx, nextSessionTx, type NextSession, type PrescriptionView } from "./plan";
 import { getWorkoutView, historyTx, type NextSet } from "./training";
 import { getCheckin } from "./wellness";
@@ -198,6 +198,7 @@ async function previewExercisesTx(tx: Tx, date: string, next: NextSession, readi
      from fit.exercises e where e.id = any($1::uuid[])`, [ids])).map((r) => [r.id, r]));
   const history = await historyTx(tx, ids, { upTo: date });
   const ankle = await ankleStatusTx(tx, date);
+  const inDeficit = await inDeficitTx(tx, date);
   const flaggedAny = ankle.rule.restricted && list.some((p) => p.exercise.ankleLoad === "alta");
   const lib = flaggedAny ? await loadLibraryTx(tx) : [];
 
@@ -205,7 +206,8 @@ async function previewExercisesTx(tx: Tx, date: string, next: NextSession, readi
     const x = extra.get(p.exerciseId);
     const past = history.get(p.exerciseId) ?? [];
     const rx = prescriptionOf(p, x?.loadStep ?? 2.5);
-    let suggestion: TodaySuggestion | null = rx ? suggestNext(past, rx, { readiness, deload: next.isDeload }) : null;
+    const holdProgression = p.exercise.ankleLoad === "alta" ? ankle.rule.holdProgression : null;
+    let suggestion: TodaySuggestion | null = rx ? suggestNext(past, rx, { readiness, deload: next.isDeload, inDeficit, holdProgression }) : null;
 
     const flagged = ankle.rule.restricted && p.exercise.ankleLoad === "alta";
     const ankleCap = flagged ? ankle.rule.squatCapPct ?? 75 : null;
