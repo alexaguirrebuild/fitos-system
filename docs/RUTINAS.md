@@ -69,17 +69,19 @@ Se puede: con volumen igualado, la hipertrofia es parecida (PMID 30558493). Pero
 
 Esta semana ya llevas brazo (lunes), pecho (miércoles), pierna (jueves) y espalda (viernes). Falta hombro, y el pecho lleva 4 días sin tocarse. Espalda y pierna, mejor no, para llegar descansado al lunes.
 
+Es el día 2 del programa cargado (ver §8): «Hombro + brazo».
+
 | Ejercicio | Series × reps | RIR |
 |---|---|---|
-| Press militar en máquina o Multipower sentado | 3 × 6-8 | 2 |
-| Press inclinado con mancuerna | 3 × 8-10 | 2 |
-| Elevación lateral Insignia | 3 × 10-15 | 1 |
-| Elevación lateral en polea (DAP), una mano | 2 × 12-15 | 0-1 |
-| Mariposa posterior Insignia (deltoides posterior) | 3 × 12-15 | 1 |
-| Tríceps katana (polea por encima de la cabeza) | 2 × 10-12 | 1 |
-| Curl bayesiano en polea | 2 × 10-12 | 1 |
+| Press militar en máquina | 3 × 6-8 | 2 |
+| Elevación lateral en polea, una mano | 3 × 12-15 | 1 |
+| Elevación lateral en máquina (Insignia) | 2 × 10-15 | 1 |
+| Contractora inversa (deltoides posterior) | 3 × 12-15 | 1 |
+| Tríceps katana (polea por encima de la cabeza) | 3 × 10-12 | 1 |
+| Curl bayesiano en polea | 3 × 10-12 | 1 |
+| Curl con barra Z en Scott | 2 × 8-12 | 1 |
 
-Unos 55-65 min. Descansos de 2-3 min en los presses y de 90 s en el resto. Apunta kilos y reps: es tu punto de partida.
+Unos 65 min. Descansos de 2-3 min en el press y de 75-90 s en el resto.
 
 ## 6. Qué contempla la app y qué no
 
@@ -102,3 +104,21 @@ Unos 55-65 min. Descansos de 2-3 min en los presses y de 90 s en el resto. Apunt
 - Con el cálculo de referencia: ~2.160 kcal, ~188 g de proteína repartidos en 4 comidas de ~47 g (unos 30 g por comida dieron un 25 % más de síntesis que cargar la cena; PMID 24477298, en `MOTOR.md`), ~72 g de grasa y el resto en hidratos.
 - La pizza de hoy (1.750 kcal estimadas) es un día. El motor juzga por semanas: no hay que compensar mañana pasando hambre.
 - Apuntar: foto, audio o texto a Muse, que lo estima y lo registra.
+
+## 8. Programa cargado: `alex-torso-pierna-5d` (decidido con tu histórico)
+
+Se analizaron las 102 sesiones del 30-jun al 14-nov con el motor de la app. El análisis completo está en `VIDA/entrenamiento/analisis-historico-2026-11.md`, fuera de este repo porque son datos personales. Lo que cambió la selección:
+
+| Dato de tu histórico | Decisión |
+|---|---|
+| 90 % de las series a RIR 1-2 | Se mantiene: los aislamientos a RIR 1 y los compuestos a RIR 2. En déficit el motor suma +1 a los compuestos |
+| Bíceps a 13,5 series/semana; cuádriceps a 6,9, isquios a 4,9 y glúteo a 5 (oct-nov) | Bíceps directo baja a 7 series (más ~6 indirectas de los tirones). Pierna: cuádriceps ~12, isquios ~9, glúteo ~9 |
+| Banca estancada en 100 × 6 desde agosto | Banca 2 veces por semana: martes pesado (4 × 4-6) y viernes moderado (3 × 8-10). Más frecuencia ayuda a la fuerza (PMID 41343037) |
+| Deltoides lateral bien (9 series, 2 veces por semana); anterior a 2,9 | Lateral a ~11 series en 3 días; press militar el domingo |
+| Hip thrust casi abandonado; glúteo a 0,3 días por semana | Hip thrust el jueves |
+| 4-5 días por semana desde octubre; sesiones de 85-112 min | 5 días de 65-75 min. Miércoles de descanso activo y sábado libre |
+| Ejercicios que más repites y progresas: extensión de cuádriceps, jalón prono, remo unilateral en polea, katana, bayesiano, contractoras | Se quedan, porque la adherencia también cuenta |
+
+Rueda de 7 días: sábado descanso · domingo hombro + brazo · lunes pierna A · martes torso A · miércoles descanso activo · jueves pierna B · viernes torso B. Son 5 semanas de bloque y 1 de descarga (mitad de series, misma carga, RIR 3).
+
+Las cargas no van escritas en la plantilla: las propone el motor (`suggestNext`) a partir de tu histórico, cuando esté importado en producción.
