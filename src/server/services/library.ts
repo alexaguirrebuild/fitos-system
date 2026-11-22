@@ -265,6 +265,15 @@ export const AddAliasInput = z.object({
 
 export type AddAliasResult = { exercise: Exercise; cloned: boolean };
 
+/** Otro ejercicio (ni este ni su copia propia) que ya se llama así. Si existe, el alias no se puede añadir. */
+export function aliasOwnerIn(lib: Exercise[], ex: Pick<Exercise, "id" | "slug">, alias: string): Exercise | undefined {
+  const key = normalizeText(alias);
+  return lib.find((e) => e.id !== ex.id && e.slug !== ex.slug && labels(e).some((l) => normalizeText(l) === key));
+}
+
+/** ¿El texto ya es nombre, slug o alias de este ejercicio? */
+export const hasLabel = (ex: Exercise, text: string) => labels(ex).some((l) => normalizeText(l) === normalizeText(text));
+
 /**
  * Añade un alias. El catálogo común no se puede tocar, así que un ejercicio común se copia como propio
  * (mismo slug: lo tapa) y el plan, las series y los vídeos del atleta pasan a apuntar a la copia,
@@ -273,8 +282,7 @@ export type AddAliasResult = { exercise: Exercise; cloned: boolean };
 export async function addAliasTx(tx: Tx, i: z.output<typeof AddAliasInput>): Promise<AddAliasResult> {
   const lib = await loadLibraryTx(tx);
   let ex = await getExerciseTx(tx, i.exerciseId);
-  const key = normalizeText(i.alias);
-  const owner = lib.find((e) => e.id !== ex.id && e.slug !== ex.slug && labels(e).some((l) => normalizeText(l) === key));
+  const owner = aliasOwnerIn(lib, ex, i.alias);
   if (owner) throw new AppError("conflicto", `«${i.alias}» ya es el nombre de ${owner.name}.`, { exerciseId: owner.id });
 
   let cloned = false;
@@ -295,7 +303,7 @@ export async function addAliasTx(tx: Tx, i: z.output<typeof AddAliasInput>): Pro
       cloned = true;
     }
   }
-  if (!labels(ex).some((l) => normalizeText(l) === key))
+  if (!hasLabel(ex, i.alias))
     await tx.query("update fit.exercises set aliases = array_append(aliases, $1) where id = $2", [i.alias, ex.id]);
   return { exercise: await getExerciseTx(tx, ex.id), cloned };
 }
@@ -419,20 +427,23 @@ export const ListUnlinkedNamesInput = z.object({
 export type UnlinkedName = { rawName: string; sets: number; lastDate: string | null; candidates: { id: string; slug: string; name: string }[] };
 
 /** Nombres en texto libre de series sin ejercicio, agrupados, con hasta 3 candidatos de la librería. */
+/** Igual que `listUnlinkedNames`, dentro de una transacción ya abierta (el simulacro la abre en solo lectura). */
+export async function listUnlinkedNamesTx(tx: Tx, limit: number): Promise<UnlinkedName[]> {
+  const rows = await tx.query<{ rawName: string; sets: number; lastDate: string | null }>(
+    `select s.exercise_name_raw as "rawName", count(*)::int as sets, max(w.date) as "lastDate"
+     from fit.workout_sets s join fit.workouts w on w.id = s.workout_id
+     where s.exercise_id is null and s.exercise_name_raw is not null and btrim(s.exercise_name_raw) <> ''
+     group by s.exercise_name_raw order by count(*) desc, s.exercise_name_raw limit $1`, [limit]);
+  const lib = await loadLibraryTx(tx);
+  return rows.map((r) => ({
+    ...r,
+    candidates: resolveIn(lib, r.rawName).candidates.slice(0, 3).map((e) => ({ id: e.id, slug: e.slug, name: e.name })),
+  }));
+}
+
 export async function listUnlinkedNames(userId: string, input?: z.input<typeof ListUnlinkedNamesInput>, db?: Db): Promise<UnlinkedName[]> {
   const i = parseInput(ListUnlinkedNamesInput, input ?? {});
-  return withUser(userId, async (tx) => {
-    const rows = await tx.query<{ rawName: string; sets: number; lastDate: string | null }>(
-      `select s.exercise_name_raw as "rawName", count(*)::int as sets, max(w.date) as "lastDate"
-       from fit.workout_sets s join fit.workouts w on w.id = s.workout_id
-       where s.exercise_id is null and s.exercise_name_raw is not null and btrim(s.exercise_name_raw) <> ''
-       group by s.exercise_name_raw order by count(*) desc, s.exercise_name_raw limit $1`, [i.limit]);
-    const lib = await loadLibraryTx(tx);
-    return rows.map((r) => ({
-      ...r,
-      candidates: resolveIn(lib, r.rawName).candidates.slice(0, 3).map((e) => ({ id: e.id, slug: e.slug, name: e.name })),
-    }));
-  }, db);
+  return withUser(userId, (tx) => listUnlinkedNamesTx(tx, i.limit), db);
 }
 
 export const LinkRawNameInput = z.object({
@@ -457,7 +468,7 @@ export async function linkRawName(userId: string, input: z.input<typeof LinkRawN
     let cloned = false;
     let ex = before;
     const alias = i.rawName.trim();
-    if (alias.length >= 2 && !labels(before).some((l) => normalizeText(l) === normalizeText(alias))) {
+    if (alias.length >= 2 && !hasLabel(before, alias)) {
       const r = await addAliasTx(tx, { exerciseId: i.exerciseId, alias });
       ex = r.exercise; cloned = r.cloned; aliasAdded = true;
     }

@@ -3,11 +3,13 @@
  * escrito a mano (tablas Markdown). El mapa vive fuera del repo porque los nombres crudos son notas personales.
  *
  * Idempotente: solo toca series con `exercise_id` nulo, así que repetirlo no hace nada.
+ * El simulacro lee en una transacción `read only` y repite las comprobaciones de `linkRawName`, para que lo que
+ * dice que haría sea lo que luego pasa.
  */
 import { z } from "zod";
 import { withUser, type Db } from "@/db/client";
 import { invalid } from "@/server/errors";
-import { linkRawName, listUnlinkedNames, loadLibraryTx } from "@/server/services/library";
+import { aliasOwnerIn, hasLabel, LinkRawNameInput, linkRawName, listUnlinkedNamesTx, loadLibraryTx, type Exercise } from "@/server/services/library";
 
 export type OrphanMapEntry = { rawName: string; slug: string };
 
@@ -51,6 +53,8 @@ export type OrphanAction = {
   /** Textos exactos en la base que corresponden a esta fila (puede haber varios si solo cambian los espacios). */
   matches: { rawName: string; sets: number }[];
   linked: number;
+  /** Sin series sueltas: si ya hay series enlazadas con este nombre (pasada anterior) o si no aparece en la base. */
+  alreadyLinked: boolean;
   error?: string;
 };
 
@@ -63,23 +67,46 @@ export type OrphanReport = {
   /** Lo que sigue suelto al terminar (en simulacro, lo que quedaría). */
   remaining: { rawName: string; sets: number }[];
   remainingSets: number;
+  /** Se llegó al máximo que lista `listUnlinkedNames`: puede haber más; repetir el script enlaza el resto. */
+  truncated: boolean;
 };
 
-// listUnlinkedNames no pagina: 200 es su máximo. Si se llega, puede haber más; el script lo avisa y repetirlo enlaza el resto.
 const LIST_MAX = 200;
 
-export async function linkOrphans(userId: string, entries: OrphanMapEntry[], opts: { dryRun: boolean }, db?: Db): Promise<OrphanReport & { truncated: boolean }> {
-  const all = entries.map((e) => Entry.parse(e));
-  const unlinked = await listUnlinkedNames(userId, { limit: LIST_MAX }, db);
-  const byKey = new Map<string, { rawName: string; sets: number }[]>();
-  for (const u of unlinked) {
-    const k = orphanKey(u.rawName);
-    byKey.set(k, [...(byKey.get(k) ?? []), { rawName: u.rawName, sets: u.sets }]);
-  }
+type Snapshot = { unlinked: { rawName: string; sets: number }[]; linkedKeys: Set<string>; lib: Exercise[] };
 
-  // Id visible por slug: si el atleta tiene copia propia, esa tapa a la común (y es a la que hay que enlazar).
-  const ids = new Map((await withUser(userId, loadLibraryTx, db)).map((e) => [e.slug, e.id]));
-  const unknownSlugs = [...new Set(all.map((e) => e.slug).filter((s) => !ids.has(s)))];
+async function snapshot(userId: string, readOnly: boolean, db?: Db): Promise<Snapshot> {
+  return withUser(userId, async (tx) => {
+    if (readOnly) await tx.query("set transaction read only");
+    const unlinked = (await listUnlinkedNamesTx(tx, LIST_MAX)).map((u) => ({ rawName: u.rawName, sets: u.sets }));
+    const linked = await tx.query<{ raw: string }>(
+      "select distinct exercise_name_raw as raw from fit.workout_sets where exercise_id is not null and exercise_name_raw is not null");
+    return { unlinked, linkedKeys: new Set(linked.map((r) => orphanKey(r.raw))), lib: await loadLibraryTx(tx) };
+  }, db);
+}
+
+/** Lo que `linkRawName` rechazaría, comprobado sin escribir. Simula los alias que van añadiendo las filas anteriores. */
+function dryRunError(lib: Exercise[], ex: Exercise, rawName: string): string | undefined {
+  if (!LinkRawNameInput.safeParse({ rawName, exerciseId: ex.id }).success) return "el nombre pasa de 200 caracteres";
+  const alias = rawName.trim();
+  if (alias.length < 2 || hasLabel(ex, alias)) return undefined;
+  const owner = aliasOwnerIn(lib, ex, alias);
+  if (owner) return `«${alias}» ya es el nombre de ${owner.name}.`;
+  ex.aliases = [...ex.aliases, alias];
+  return undefined;
+}
+
+export async function linkOrphans(userId: string, entries: OrphanMapEntry[], opts: { dryRun: boolean }, db?: Db): Promise<OrphanReport> {
+  const all = entries.map((e) => Entry.parse(e));
+  const snap = await snapshot(userId, opts.dryRun, db);
+  const byKey = new Map<string, { rawName: string; sets: number }[]>();
+  for (const u of snap.unlinked) byKey.set(orphanKey(u.rawName), [...(byKey.get(orphanKey(u.rawName)) ?? []), u]);
+
+  // Ejercicio visible por slug: si el atleta tiene copia propia, esa tapa a la común (y es a la que hay que enlazar).
+  // En simulacro se trabaja sobre copias para poder ir añadiendo alias sin tocar nada.
+  const lib = snap.lib.map((e) => ({ ...e, aliases: [...e.aliases] }));
+  const bySlug = new Map(lib.map((e) => [e.slug, e]));
+  const unknownSlugs = [...new Set(all.map((e) => e.slug).filter((s) => !bySlug.has(s)))];
   if (unknownSlugs.length && !opts.dryRun)
     throw invalid(`Slugs que no están en la librería: ${unknownSlugs.join(", ")}. ¿Falta aplicar el seed (npm run db:seed)?`);
 
@@ -87,19 +114,23 @@ export async function linkOrphans(userId: string, entries: OrphanMapEntry[], opt
   const done = new Set<string>();
   for (const e of all) {
     const matches = byKey.get(e.rawName) ?? [];
-    const a: OrphanAction = { rawName: e.rawName, slug: e.slug, matches, linked: 0 };
+    const a: OrphanAction = { rawName: e.rawName, slug: e.slug, matches, linked: 0, alreadyLinked: !matches.length && snap.linkedKeys.has(e.rawName) };
     actions.push(a);
-    if (opts.dryRun) {
-      if (!ids.has(e.slug)) continue;
-      a.linked = matches.reduce((s, m) => s + m.sets, 0);
-      matches.forEach((m) => done.add(m.rawName));
-      continue;
-    }
+    const ex = bySlug.get(e.slug);
+    if (!ex) continue;
     for (const m of matches) {
+      if (opts.dryRun) {
+        const err = dryRunError(lib, ex, m.rawName);
+        if (err) { a.error = err; continue; }
+        a.linked += m.sets;
+        done.add(m.rawName);
+        continue;
+      }
       try {
-        const r = await linkRawName(userId, { rawName: m.rawName, exerciseId: ids.get(e.slug)! }, db);
+        const r = await linkRawName(userId, { rawName: m.rawName, exerciseId: ex.id }, db);
         a.linked += r.linked;
-        ids.set(e.slug, r.exercise.id); // la primera vez puede crear la copia propia: las siguientes van a ella
+        // La primera vez puede crear la copia propia: las siguientes filas de ese slug van a ella.
+        bySlug.set(e.slug, { ...r.exercise, aliases: [...r.exercise.aliases] });
         done.add(m.rawName);
       } catch (err) {
         a.error = err instanceof Error ? err.message : String(err);
@@ -107,9 +138,7 @@ export async function linkOrphans(userId: string, entries: OrphanMapEntry[], opt
     }
   }
 
-  const remaining = opts.dryRun
-    ? unlinked.filter((u) => !done.has(u.rawName)).map((u) => ({ rawName: u.rawName, sets: u.sets }))
-    : (await listUnlinkedNames(userId, { limit: LIST_MAX }, db)).map((u) => ({ rawName: u.rawName, sets: u.sets }));
+  const remaining = opts.dryRun ? snap.unlinked.filter((u) => !done.has(u.rawName)) : (await snapshot(userId, true, db)).unlinked;
   return {
     dryRun: opts.dryRun,
     actions,
@@ -118,6 +147,6 @@ export async function linkOrphans(userId: string, entries: OrphanMapEntry[], opt
     linkedNames: actions.filter((a) => a.linked > 0).length,
     remaining,
     remainingSets: remaining.reduce((s, r) => s + r.sets, 0),
-    truncated: unlinked.length === LIST_MAX,
+    truncated: snap.unlinked.length === LIST_MAX,
   };
 }

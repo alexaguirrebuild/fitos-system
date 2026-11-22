@@ -26,7 +26,8 @@ gemelos|Gemelos|pierna|6|16|48|
 core|Core|core|4|16|24|
 """
 
-# slug|nombre|principal|secundarios|tipo|patrón|equipo|estabilidad|perfil|coste|salto|calentamiento|tobillo|impacto|alias
+# slug|nombre|principal|secundarios|tipo|patrón|equipo|estabilidad|perfil|coste|salto|calentamiento|tobillo|impacto|alias[|tipo_de_equipo]
+# El tipo de equipo es opcional: si falta, la carga lo deduce del equipo (equipmentTypeFrom).
 EX = """
 press-banca|Press banca|pectoral|triceps,deltoides_anterior|compuesto|empuje_h|barra|bilateral_libre|constante|1.2|2.5|completo|ninguna|0|press de banca;bench
 press-inclinado-mancuerna|Press inclinado con mancuernas|pectoral|deltoides_anterior,triceps|compuesto|empuje_h|mancuernas|bilateral_libre|constante|1|2|reducido|ninguna|0|press incl mancuerna
@@ -84,6 +85,13 @@ z2-eliptica|Z2 en elíptica|||cardio|cardio|eliptica|bilateral_guiado|constante|
 z2-cinta-inclinada|Z2 andando en cinta inclinada|||cardio|cardio|cinta|bilateral_libre|constante|0.4|1|no|baja|0|z2 cinta inclinada;cinta
 carrera|Carrera continua|||cardio|cardio|ninguno|bilateral_libre|constante|0.8|1|no|alta|1|correr;carrera
 hiit-bici|HIIT en bici (sin impacto)|||cardio|cardio|bici|bilateral_guiado|constante|0.7|1|no|ninguna|0|hiit bici
+ytwl-banco-discos|Y-T-W-L tumbado en banco con discos|deltoides_posterior|trapecio|aislamiento|abduccion_h|discos|bilateral_libre|constante|0.8|1.25|no|ninguna|0|ytwl;y t w l;ytwl con discos|libre
+press-militar-hammer|Press militar en máquina Hammer|deltoides_anterior|triceps|compuesto|empuje_v|maquina|bilateral_guiado|variable|1|2.5|reducido|ninguna|0|press militar hammer;press militar en hammer|discos
+press-militar-mancuernas|Press militar con mancuernas|deltoides_anterior|triceps,deltoides_lateral|compuesto|empuje_v|mancuernas|bilateral_libre|constante|1.1|2|reducido|ninguna|0|press militar mancuernas;press hombro mancuernas
+curl-barra-polea-baja|Curl con barra en polea baja|biceps|antebrazo|aislamiento|flexion_codo|polea|bilateral_guiado|constante|1|2.5|reducido|ninguna|0|curl barra polea;curl polea baja
+elevacion-frontal-banco-inclinado|Elevación frontal tumbado en banco inclinado|deltoides_anterior||aislamiento|flexion_hombro||bilateral_libre|constante|0.8|1.25|no|ninguna|0|elevacion frontal en banco;elevaciones frontales banco inclinado|libre
+remo-pecho-apoyado-banco-multipower|Remo con pecho apoyado en banco en multipower|espalda|biceps,deltoides_posterior|compuesto|traccion_h|multipower|bilateral_guiado|constante|1|2.5|reducido|ninguna|0|remo apoyado banco multipower;remo en t multipower
+remo-con-barra|Remo con barra|espalda|biceps,deltoides_posterior,erectores|compuesto|traccion_h|barra|bilateral_libre|constante|1.3|2.5|completo|baja|0|remo barra;remo libre con barra
 """
 
 # sesión | slug | series | rep_min | rep_max | RIR | descanso s | calentamiento | tope % | nota
@@ -192,9 +200,10 @@ muscles = [dict(id=r[0], name=r[1], region=r[2], default_mev=float(r[3]), defaul
 exercises = []
 for r in rows(EX):
     exercises.append(dict(slug=r[0], name=r[1], aliases=[a for a in r[14].split(";") if a], primary_muscle=r[2] or None,
-                          secondary_muscles=[x for x in r[3].split(",") if x], kind=r[4], movement_pattern=r[5], equipment=r[6],
+                          secondary_muscles=[x for x in r[3].split(",") if x], kind=r[4], movement_pattern=r[5], equipment=r[6] or None,
                           stability=r[7], resistance_profile=r[8], stretch_bias=False, base_cost=float(r[9]), load_step=float(r[10]),
-                          per_side="unilateral" in r[7], warmup_kind=r[11], ankle_load=r[12], impact=r[13] == "1", video_urls=[], cues=None))
+                          per_side="unilateral" in r[7], warmup_kind=r[11], ankle_load=r[12], impact=r[13] == "1", video_urls=[], cues=None,
+                          **({"equipment_type": r[15]} if len(r) > 15 and r[15] else {})))
 for e in exercises:
     e["aliases"] += [a for a in EXTRA_ALIASES.get(e["slug"], []) if a not in e["aliases"]]
 assert set(EXTRA_ALIASES) <= {e["slug"] for e in exercises}

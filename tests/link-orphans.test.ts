@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { asSystem, openMemoryDb, withUser, type Db } from "@/db/client";
+import { asSystem, openMemoryDb, pendingMigrations, withUser, type Db } from "@/db/client";
 import { linkOrphans, parseOrphanMap } from "@/server/link-orphans";
 import { seedCatalog } from "@/server/seed";
 
@@ -88,8 +88,35 @@ describe("linkOrphans", () => {
 
     const again = await linkOrphans(u, parseOrphanMap(MAP), { dryRun: false }, db);
     expect(again).toMatchObject({ linkedSets: 0, linkedNames: 0, remainingSets: 1 });
-    expect(again.actions.every((a) => !a.error && a.matches.length === 0)).toBe(true);
+    expect(again.actions.every((a) => !a.error && a.matches.length === 0 && a.alreadyLinked)).toBe(true);
     expect(await sets()).toEqual(after);
+  });
+
+  it("distingue «ya enlazado» de «no aparece en la base»", async () => {
+    const r = await linkOrphans(u, parseOrphanMap("| 1 | Pres banca plano | x | `press-banca` |\n| 1 | Nombre que nunca existió | x | `press-banca` |"), { dryRun: true }, db);
+    expect(r.actions.map((a) => a.alreadyLinked)).toEqual([true, false]);
+  });
+
+  it("el simulacro ve el mismo conflicto de alias que la ejecución real", async () => {
+    // «remo barra» ya es alias de remo-con-barra: enlazarlo a dominadas lo rechazaría addAliasTx.
+    const [{ id: v }] = await asSystem((tx) => tx.query<{ id: string }>("insert into fit.athletes (email) values ('conflicto@test.local') returning id"), db);
+    await withUser(v, async (tx) => {
+      const [w] = await tx.query<{ id: string }>("insert into fit.workouts (date, name, status) values ('2026-06-03', 'Vieja', 'hecha') returning id");
+      await tx.query(
+        `insert into fit.workout_sets (workout_id, exercise_name_raw, exercise_position, set_index, kg, reps) values
+           ($1, 'Remo barra', 1, 1, 40, 10), ($1, 'Jalón raro', 2, 1, 40, 10)`, [w.id]);
+    }, db);
+    const map = parseOrphanMap("| 1 | Remo barra | x | `dominadas` |\n| 1 | Jalón raro | x | `dominadas` |");
+    const dry = await linkOrphans(v, map, { dryRun: true }, db);
+    expect(dry.actions[0].error).toMatch(/ya es el nombre de Remo con barra/);
+    expect(dry).toMatchObject({ linkedSets: 1, remainingSets: 1 });
+    const real = await linkOrphans(v, map, { dryRun: false }, db);
+    expect(real.actions[0].error).toMatch(/ya es el nombre de Remo con barra/);
+    expect(real).toMatchObject({ linkedSets: 1, remainingSets: 1 });
+  });
+
+  it("no hay migraciones pendientes en una base recién migrada", async () => {
+    expect(await pendingMigrations(db)).toEqual([]);
   });
 
   it("con un slug que no existe no escribe nada (salvo en simulacro, que lo avisa)", async () => {

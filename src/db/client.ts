@@ -105,6 +105,16 @@ export async function migrate(db: Db): Promise<string[]> {
   return applied;
 }
 
+/** Migraciones del repo que `migrate` aplicaría en esta base. Solo lee (transacción `read only`). */
+export async function pendingMigrations(db: Db): Promise<string[]> {
+  const done = await db.tx(async (tx) => {
+    await tx.query("set transaction read only");
+    const [{ t }] = await tx.query<{ t: string | null }>("select to_regclass('public.fit_migrations')::text as t");
+    return new Set(t ? (await tx.query<{ name: string }>("select name from public.fit_migrations")).map((r) => r.name) : []);
+  });
+  return readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql") && !done.has(f)).sort();
+}
+
 type Global = { __fitDb?: Promise<Db> };
 const g = globalThis as Global;
 
