@@ -27,6 +27,9 @@ describe("semillas", () => {
     expect(again.glossary).toBeGreaterThan(50);
     const [{ n }] = await db.query<{ n: number }>("select count(*)::int as n from fit.exercises where user_id is null");
     expect(n).toBe(again.exercises);
+    // Los alimentos sin código de barras (fruta y verdura a granel) tampoco se duplican.
+    const [{ f }] = await db.query<{ f: number }>("select count(*)::int as f from fit.foods where user_id is null");
+    expect(f).toBe(again.foods);
   });
 });
 
