@@ -15,6 +15,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.mts",
     "import:legacy": "tsx scripts/import-legacy.mts",
+    "enlazar:huerfanos": "tsx scripts/enlazar-huerfanos.mts",
     "hash-password": "tsx scripts/hash-password.ts"
   },
   "dependencies": {

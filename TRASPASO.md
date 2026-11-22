@@ -46,6 +46,7 @@ La base de producción **no** está en el conector de Supabase de Claude (perten
 ### Ejercicios sin enlazar
 
 - **70 nombres y 234 series (10,9 %)** sin enlazar tras el import. Muchos son notas pegadas al nombre en la app antigua, incluidas sesiones de sentadilla que hoy no cuentan para el histórico de pierna. [local]
+- **Fase 1 (rama `fase-1/mapa-ejercicios`)**: 7 ejercicios nuevos en el seed y `scripts/enlazar-huerfanos.ps1` (simulacro → confirmación → `db:seed` → enlace), que aplica el mapa de `VIDA/entrenamiento/mapa-huerfanos-2026-11-22.md`. En local, con el export del 21-nov: 234 → 0 series sueltas; repetido, 0 cambios. **Sin aplicar en producción** hasta que lo ejecute Alex. [local]
 - El dato de producción puede ser menor si desde entonces se usó `link_exercise_name`. Ya existen `list_unlinked_exercise_names` y `link_exercise_name` (enlazan y guardan el alias), pero solo por MCP. No hay pantalla. [repo]
 
 ### MCP
