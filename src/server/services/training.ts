@@ -434,6 +434,10 @@ async function nextPositionTx(tx: Tx, workoutId: string): Promise<number> {
   return r.p;
 }
 
+/**
+ * Abre la sesión del día o devuelve la que ya está en curso para esa plantilla. Solo la fila: la vista
+ * (sugerencias, historial, tobillo) es cara y la construye quien la necesite.
+ */
 async function startWorkoutTx(tx: Tx, i: z.output<typeof StartWorkoutInput>): Promise<Workout> {
   const date = await dateOrToday(tx, i.date);
   const [open] = await tx.query<Workout>(
@@ -444,20 +448,23 @@ async function startWorkoutTx(tx: Tx, i: z.output<typeof StartWorkoutInput>): Pr
   let name = i.name ?? "Sesión libre";
   let microcycle: { id: string; position: number } | null = null;
   if (i.sessionTemplateId) {
-    const [t] = await tx.query<{ name: string; isRest: boolean; mesocycleId: string }>(
-      'select name, is_rest as "isRest", mesocycle_id as "mesocycleId" from fit.session_templates where id = $1', [i.sessionTemplateId]);
+    // Plantilla y microciclos de su mesociclo en una sola ida y vuelta.
+    const [t] = await tx.query<{ name: string; isRest: boolean; micros: { id: string; position: number; endDate: string | null }[] }>(
+      `select t.name, t.is_rest as "isRest",
+         coalesce((select json_agg(json_build_object('id', m.id, 'position', m.position, 'endDate', m.end_date) order by m.position)
+                   from fit.microcycles m where m.mesocycle_id = t.mesocycle_id), '[]'::json) as micros
+       from fit.session_templates t where t.id = $1`, [i.sessionTemplateId]);
     if (!t) throw notFound("La sesión del plan");
     if (t.isRest) throw invalid(`«${t.name}» es un día de descanso: no tiene sesión.`);
     name = i.name ?? t.name;
-    const micros = await tx.query<{ id: string; position: number; endDate: string | null }>(
-      'select id, position, end_date as "endDate" from fit.microcycles where mesocycle_id = $1 order by position', [t.mesocycleId]);
-    microcycle = micros.find((m) => m.endDate != null && date <= m.endDate) ?? micros[micros.length - 1] ?? null;
+    microcycle = t.micros.find((m) => m.endDate != null && date <= m.endDate) ?? t.micros[t.micros.length - 1] ?? null;
   }
-  const [chk] = await tx.query<{ readiness: number | null }>("select readiness from fit.checkins where date = $1", [date]);
-  const [created] = await tx.query<{ id: string }>(
-    `insert into fit.workouts (date, started_at, session_template_id, microcycle_id, name, status, readiness_before)
-     values ($1, now(), $2, $3, $4, 'en_curso', $5) returning id`,
-    [date, i.sessionTemplateId ?? null, microcycle?.id ?? null, name, chk?.readiness ?? null]);
+  // La disposición del día va dentro del insert (un check-in por día y atleta) y la fila vuelve en el returning.
+  const [created] = await tx.query<Workout>(
+    `insert into fit.workouts as w (date, started_at, session_template_id, microcycle_id, name, status, readiness_before)
+     values ($1, now(), $2, $3, $4, 'en_curso', (select c.readiness from fit.checkins c where c.date = $1))
+     returning ${WORKOUT_COLS}`,
+    [date, i.sessionTemplateId ?? null, microcycle?.id ?? null, name]);
   if (i.sessionTemplateId) {
     const rx = (await prescriptionsForTx(tx, [i.sessionTemplateId], microcycle?.position ?? null)).get(i.sessionTemplateId) ?? [];
     const seen = new Set<string>();
@@ -469,13 +476,22 @@ async function startWorkoutTx(tx: Tx, i: z.output<typeof StartWorkoutInput>): Pr
          from jsonb_to_recordset($2::jsonb) as x(exercise_id uuid, position smallint, prescription_id uuid)`,
         [created.id, JSON.stringify(list.map((p, k) => ({ exercise_id: p.exerciseId, position: k + 1, prescription_id: p.id })))]);
   }
-  return getWorkoutTx(tx, created.id);
+  return created;
 }
 
 /** Abre la sesión del día (o devuelve la que ya está en curso para esa plantilla) con todo lo que hay que hacer. */
 export async function startWorkout(userId: string, input?: StartWorkoutInput, db?: Db): Promise<WorkoutView> {
   const i = parseInput(StartWorkoutInput, input ?? {});
   return withUser(userId, async (tx) => buildViewTx(tx, await startWorkoutTx(tx, i)), db);
+}
+
+/**
+ * Lo mismo que `startWorkout`, sin la vista: para el botón «Empezar», que redirige a la sesión y la
+ * página la calcula allí. Calcularla aquí era tirarla (23 consultas en vez de 10).
+ */
+export async function openWorkout(userId: string, input?: StartWorkoutInput, db?: Db): Promise<{ workoutId: string }> {
+  const i = parseInput(StartWorkoutInput, input ?? {});
+  return withUser(userId, async (tx) => ({ workoutId: (await startWorkoutTx(tx, i)).id }), db);
 }
 
 /* ───────────────────────── Registrar una serie ───────────────────────── */

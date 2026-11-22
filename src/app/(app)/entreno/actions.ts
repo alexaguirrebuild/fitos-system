@@ -7,7 +7,7 @@ import { requireUser } from "@/server/auth";
 import { FindAlternativesInput, SearchExercisesInput, findAlternatives, searchExercises } from "@/server/services/library";
 import {
   AddExerciseToWorkoutInput, DeleteSetInput, FinishWorkoutInput, LogSetInput, StartWorkoutInput, SwapExerciseInput,
-  addExerciseToWorkout, deleteSet, finishWorkout, getWorkoutView, logSet, startWorkout, swapExercise,
+  addExerciseToWorkout, deleteSet, finishWorkout, getWorkoutView, logSet, openWorkout, swapExercise,
   type LogSetResult, type WorkoutView,
 } from "@/server/services/training";
 
@@ -18,14 +18,14 @@ const touch = () => {
   revalidatePath("/");
 };
 
-/** Abre la sesión (la del plan o una libre) y va a ella. Se usa como `action` de un formulario. */
+/** Abre la sesión (la del plan o una libre) y va a ella. Se usa como `action` de un formulario. La vista la calcula la página de destino. */
 export async function startAndGo(sessionTemplateId: string | null, formData: FormData): Promise<void> {
   const userId = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
   const input = StartWorkoutInput.parse(sessionTemplateId ? { sessionTemplateId } : name ? { name } : {});
-  const view = await startWorkout(userId, input);
+  const { workoutId } = await openWorkout(userId, input);
   touch();
-  redirect(`/entreno/${view.workout.id}`);
+  redirect(`/entreno/${workoutId}`);
 }
 
 /** Registra una serie y devuelve la sesión ya recalculada (siguiente serie, totales, sugerencias). */

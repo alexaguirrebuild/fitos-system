@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Empty, Notice, PageHeader, Section } from "@/components/ui";
 import { IconChevron } from "@/components/icons";
+import { PendingSubmit } from "@/components/pending-submit";
 import { sessionOrLogin } from "@/app/_server/session";
 import { ago, day, int, num, repRange, weekday } from "@/lib/format";
 import { getNextSession } from "@/server/services/plan";
@@ -41,9 +42,9 @@ export default async function EntrenoPage() {
           <p className="display mt-1 text-[2.25rem]">{s.name}</p>
           {s.focus ? <p className="muted mt-1">{s.focus}</p> : null}
           <form action={startAndGo.bind(null, s.id)} className="mt-4">
-            <button type="submit" className="btn btn-primary btn-lg btn-block">
+            <PendingSubmit className="btn btn-primary btn-lg btn-block" pendingText="Abriendo…">
               Empezar {s.name}
-            </button>
+            </PendingSubmit>
           </form>
           {s.prescriptions.length ? (
             <ol className="rows mt-5">
@@ -74,9 +75,9 @@ export default async function EntrenoPage() {
               Nombre de la sesión
             </label>
             <input id="free-name" name="name" className="input" placeholder="Nombre (opcional)" maxLength={80} />
-            <button type="submit" className="btn flex-none">
+            <PendingSubmit className="btn flex-none" pendingText="Abriendo…">
               Abrir
-            </button>
+            </PendingSubmit>
           </form>
         </Section>
       ) : null}
@@ -91,7 +92,8 @@ export default async function EntrenoPage() {
               .slice(0, 8)
               .map((w) => (
                 <li key={w.id}>
-                  <Link href={`/entreno/${w.id}`} className="row">
+                  {/* Sin precarga: cada enlace es una página dinámica entera (13 GET en medio segundo al abrir /entreno). */}
+                  <Link href={`/entreno/${w.id}`} prefetch={false} className="row">
                     <span className="min-w-0">
                       <span className="block truncate">{w.name ?? "Sesión"}</span>
                       <span className="fig micro faint">
