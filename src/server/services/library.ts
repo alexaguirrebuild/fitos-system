@@ -426,7 +426,6 @@ export const ListUnlinkedNamesInput = z.object({
 
 export type UnlinkedName = { rawName: string; sets: number; lastDate: string | null; candidates: { id: string; slug: string; name: string }[] };
 
-/** Nombres en texto libre de series sin ejercicio, agrupados, con hasta 3 candidatos de la librería. */
 /** Igual que `listUnlinkedNames`, dentro de una transacción ya abierta (el simulacro la abre en solo lectura). */
 export async function listUnlinkedNamesTx(tx: Tx, limit: number): Promise<UnlinkedName[]> {
   const rows = await tx.query<{ rawName: string; sets: number; lastDate: string | null }>(
@@ -441,6 +440,7 @@ export async function listUnlinkedNamesTx(tx: Tx, limit: number): Promise<Unlink
   }));
 }
 
+/** Nombres en texto libre de series sin ejercicio, agrupados, con hasta 3 candidatos de la librería. */
 export async function listUnlinkedNames(userId: string, input?: z.input<typeof ListUnlinkedNamesInput>, db?: Db): Promise<UnlinkedName[]> {
   const i = parseInput(ListUnlinkedNamesInput, input ?? {});
   return withUser(userId, (tx) => listUnlinkedNamesTx(tx, i.limit), db);
