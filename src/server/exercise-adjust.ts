@@ -73,6 +73,8 @@ export type MergeResult = {
   carried: string[];
   /** Los que no pasan porque ya son el nombre de otro ejercicio. */
   skipped: string[];
+  /** Se crea la copia propia del destino: desde entonces, los cambios del seed en ese ejercicio no le llegan al atleta. */
+  destCopyCreated: boolean;
 };
 export type EquipmentResult = { slug: string; ownCopy: boolean; from: string | null; to: string; changed: boolean };
 export type AliasResult = { slug: string; name: string; removed: string[] };
@@ -90,12 +92,14 @@ export type AdjustReport = {
 
 async function mergeTx(tx: Tx, from: string, to: string, removing: Set<string>, apply: boolean): Promise<MergeResult> {
   const lib = await loadLibraryTx(tx);
-  const target = lib.find((e) => e.slug === to);
+  // La librería como queda tras quitar los alias de la lista: en la ejecución real ya están quitados; en el simulacro, no.
+  const after = lib.map((e) => ({ ...e, aliases: e.aliases.filter((a) => !removing.has(aliasKey(e.slug, a))) }));
+  const target = after.find((e) => e.slug === to);
   if (!target) throw notFound(`El ejercicio destino «${to}»`);
   // El origen puede tener copia propia, fila común o las dos (la copia tapa a la común, pero ambas pueden tener referencias).
   const src = await tx.query<Exercise>(`select ${EXERCISE_COLS} from fit.exercises e where e.slug = $1`, [from]);
   const ids = src.map((e) => e.id);
-  const res: MergeResult = { from, to, toName: target.name, found: src.length > 0, moved: 0, sets: 0, ownDeleted: 0, carried: [], skipped: [] };
+  const res: MergeResult = { from, to, toName: target.name, found: src.length > 0, moved: 0, sets: 0, ownDeleted: 0, carried: [], skipped: [], destCopyCreated: false };
   if (!ids.length) return res;
 
   // unique (workout_id, exercise_id): una sesión con los dos ejercicios no se puede fusionar sin decidir qué fila queda.
@@ -110,7 +114,7 @@ async function mergeTx(tx: Tx, from: string, to: string, removing: Set<string>, 
   res.ownDeleted = src.filter((e) => e.userId).length;
 
   // Nombres del origen que pasan al destino (menos los que la lista quita): así el importador y Muse los siguen reconociendo.
-  const others = lib.filter((e) => e.slug !== from);
+  const others = after.filter((e) => e.slug !== from);
   const seen = new Set<string>();
   for (const label of src.flatMap((e) => [e.name, ...e.aliases]).map((l) => l.trim())) {
     if (seen.has(normalizeText(label))) continue;
@@ -119,6 +123,7 @@ async function mergeTx(tx: Tx, from: string, to: string, removing: Set<string>, 
     if (aliasOwnerIn(others, target, label)) res.skipped.push(label);
     else res.carried.push(label);
   }
+  res.destCopyCreated = res.carried.length > 0 && !target.userId;
   if (!apply) return res;
 
   // Si hay nombres que pasar y el destino es común, hace falta su copia propia (el atleta no puede tocar la común).
@@ -166,7 +171,10 @@ async function aliasesTx(tx: Tx, list: AliasRef[], apply: boolean): Promise<{ re
  * `pendingMoves` descuenta, en simulacro, las referencias de la fila común que la fusión del atleta movería.
  */
 async function deleteCommonIfUnused(slug: string, apply: boolean, pendingMoves: number, db?: Db): Promise<CommonDeleteResult> {
-  const inSeed = seedExerciseSlugs().has(slug);
+  const seeded = seedExerciseSlugs();
+  // Sin semillas (otro directorio de trabajo) no se puede saber si db:seed la volvería a crear: mejor no borrar nada.
+  if (!seeded.size) throw invalid("No encuentro data/seed: ejecuta el script desde la raíz del repo.");
+  const inSeed = seeded.has(slug);
   return asSystem(async (tx) => {
     if (!apply) await tx.query("set transaction read only");
     const [row] = await tx.query<{ id: string }>("select id from fit.exercises where slug = $1 and user_id is null", [slug]);

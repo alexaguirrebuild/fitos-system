@@ -97,6 +97,7 @@ describe("adjustExercises", () => {
     const r = await adjustExercises(u, PLAN, { dryRun: true }, db);
     expect(r.merges).toEqual([expect.objectContaining({ found: true, moved: 4, sets: 3, ownDeleted: 1 })]);
     expect(r.merges[0].carried.sort()).toEqual(["Remo falso buen nombre", "Remo remo-falso", "remo falso de catalogo"]);
+    expect(r.merges[0].destCopyCreated).toBe(true);
     expect(r.commonDeletes).toEqual([{ slug: "remo-falso", exists: true, inSeed: false, refsLeft: 0, deleted: false }]);
     expect(r.equipment).toEqual([{ slug: "elevacion-frontal-banco-inclinado", ownCopy: true, from: null, to: "mancuernas", changed: true }]);
     expect(r.aliases.flatMap((a) => a.removed).sort()).toEqual(["Elevacion  con nota larga", "Nota de sentadilla del lunes", "Remo falso y una nota"]);
