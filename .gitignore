@@ -43,3 +43,11 @@ next-env.d.ts
 # local
 !.env.example
 /.data/
+
+# datos personales y evidencia: viven fuera de git (VIDA y CEREBRO)
+/evidencia/
+*.pdf
+
+# worktrees de sesiones de agentes
+/.claude/worktrees/
+/.claude/settings.local.json

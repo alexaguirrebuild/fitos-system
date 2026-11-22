@@ -1,59 +1,73 @@
 # TRASPASO · FITOS SYSTEM
 
-Fecha: 2026-11-20. Repo local en `~/Documents/sistema-fisico` (git, sin remoto, sin `.env`).
+Actualizado el 22-nov-2026. Sustituye al del 20-nov. Cada dato dice de dónde sale: **[prod]** leído hoy en producción, **[repo]** leído en el código, **[local]** medido en local con el mismo importador y el mismo export, **[contexto]** del brief de Alex del 22-nov sin re-verificar.
 
-## Qué funciona hoy (verificado en local)
+## Dónde está cada cosa
 
-| Pieza | Estado | Cómo se comprobó |
+| Pieza | Valor | Fuente |
 |---|---|---|
-| Motor científico (`src/engine`) | Hecho | 47 tests; varios reproducen cifras de los Excels |
-| Esquema `fit` + RLS (6 migraciones) | Hecho | Aplicado en Postgres embebido (PGlite); 8 tests de aislamiento |
-| Importación del histórico | Hecho | Export real del 15-nov: 102 sesiones, 2.072 series, 0 descartadas, 586/655 ejercicios enlazados, 15 check-ins. Idempotente |
-| Catálogo | Hecho | 148 ejercicios, 2 programas, 58 términos, 80 alimentos (41 con precio de Mercadona del 20-nov; Lidl sin precio) |
-| Servicios (entreno, plan, bienestar, analítica, nutrición, cardio, salud, medios) | Hecho | Tests por área sobre PGlite |
-| Vista «Hoy» y 63 herramientas MCP | Hecho | Tests a través del endpoint MCP real con token |
-| OAuth 2.1 (registro dinámico, PKCE, rotación) | Hecho | 51 tests; flujo completo con el cliente del SDK MCP |
-| PWA (12 rutas) | Hecho | `next build` compila; recorrido real con Playwright a 390 px con el histórico cargado; capturas en `docs/capturas/` |
-| Cola sin conexión para series | Hecho | Probada cortando la red |
+| Producción | https://fitos-system.vercel.app (proyecto Vercel `fitos-system`, plan Hobby) | [prod] |
+| Región de las funciones | **iad1 (Washington)** | [prod] `get_deployment` |
+| Base de datos | Supabase `gmxzktvjuwtohuarztvn`, pooler de transacciones en **eu-west-1 (Irlanda)**, esquema `fit` | [repo] `scripts/importar-historico.ps1` |
+| Despliegue | CLI (`npx vercel@latest deploy --prod --yes`). Vercel aún no está conectado a GitHub | [prod] `source: cli` |
+| Repo | `alexaguirrebuild/fitos-system`, privado, `main` al día con `origin` | [prod] `gh repo view` |
+| Ramas vivas | `claude/great-nash-727c01`, `claude/rediseno-frontend-158662` e `investigacion/gimnasio-reloj-drive`, con worktrees. Las tres ya están fusionadas en `main` | [repo] `git worktree list` |
 
-Suite: 266 de 266 tests en verde; tipos y build limpios.
+La base de producción **no** está en el conector de Supabase de Claude (pertenece a otra cuenta). Leerla exige la contraseña de la base, que pone Alex.
 
-## Qué NO está verificado
+## Qué funciona en producción
 
-- Nada contra el Postgres real de Supabase (solo PGlite).
-- Muse conectándose de verdad.
-- Login con contraseña real (solo modo dev).
-- En el móvil: cámara, lector de códigos de barras, vibración, instalación como PWA.
-- Subida real a Google Drive y Open Food Facts real (solo con respuestas simuladas).
-- Reloj: el endpoint de ingesta existe; el puente Watch 2R → Health Connect → `POST /api/ingest/health` hay que montarlo en el móvil (una PWA no puede leer Health Connect).
+| Pieza | Estado | Fuente |
+|---|---|---|
+| Webhook de Health Connect (`/api/ingest/hc-webhook`) | Llega cada hora (12 POST con 200 entre las 04:21 y las 14:11 UTC del 22-nov). Un origen por app: móvil y reloj no se suman | [prod] registros de peticiones · [contexto] |
+| Muse por OAuth (`mcp:read` + `mcp:log`) | Usándose hoy: `/oauth/token` y ráfagas de `/api/mcp` con 200 | [prod] registros de peticiones |
+| Histórico | 106 sesiones, 2.154 series, del 30-jun al 20-nov | [local] mismo export del 21-nov · [contexto] |
+| Programa activo | `alex-torso-pierna-5d` desde el 21-nov. Rueda y motivos en `docs/RUTINAS.md` §8 | [contexto] |
+| Nutrición | Calibración (On 3.076 / Off 2.725 kcal) hasta tener 14 días de peso y comida | [contexto] |
+| Drive | Cliente OAuth publicado y las 4 variables en Vercel. Sin probar una subida real | `docs/DRIVE.md` §5 |
 
-## Para ponerlo en producción
+## Medido el 22-nov (diagnóstico, nada corregido todavía)
 
-1. **Supabase:** crear proyecto. Copiar la cadena del *Transaction pooler* a `DATABASE_URL`.
-2. `npm run hash-password` → `OWNER_PASSWORD_HASH`. Poner `OWNER_EMAIL`.
-3. `SESSION_SECRET`: 32 bytes aleatorios (comando en `.env.example`).
-4. `APP_URL`: el origen público exacto (https). Quitar `AUTH_MODE=dev`.
-5. `OFF_USER_AGENT`: con un contacto.
-6. `npm run db:seed` (aplica migraciones y catálogo) y `npm run import:legacy -- <carpeta_export> <email>`.
-7. Desplegar (Vercel o Netlify) con esas variables.
-8. **Muse:** pegarle el texto de `docs/MUSE.md` con `<APP_URL>/api/mcp` y aprobar el consentimiento.
-9. **Drive (opcional):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DRIVE_ROOT_FOLDER_ID`. Sin ellas los vídeos quedan como «pendiente» y el fichero no se guarda.
-10. **Reloj:** Ajustes → crear token de ingesta y usarlo en la automatización del móvil.
+### «Empezar» va lento: es la región, no un bloqueo
 
-## Límites conocidos
+- Cada ida y vuelta a la base cruza el Atlántico. Con GET de solo lectura en producción: página sin base ~170 ms, `/mas` (6 consultas) ~560 ms, `/entreno` ~1,03 s y la vista de una sesión ~1,25-1,32 s. Sale a **~65 ms por consulta**. [prod]
+- Pulsar «Empezar» hace **45 idas y vueltas en serie**: 23 en la acción (`startWorkout` crea la sesión y además calcula la vista completa, que se tira) y 22 en la página de destino (layout + `getWorkoutView`, que vuelve a calcular la misma vista). [local] Son **~2,5-3 s** sin ningún aviso en el botón.
+- Además, la lista «Últimas sesiones» precarga cada enlace: se vieron 13 GET a `/entreno/[id]` en medio segundo, cada uno con ~16 consultas. [prod]
+- Hubo una ráfaga de 12 POST a `/entreno`, 6 a `/entreno/<id>` y 5 a `/nutricion` en 14 s (13:42 UTC del 22-nov). Encaja con toques repetidos o con la cola sin conexión vaciándose desde varias pestañas. **Sin confirmar**: hace falta mirar en la base qué se escribió a esa hora.
 
-- Vídeos: la subida pasa por el servidor. En Vercel el cuerpo máximo es 4,5 MB; para vídeos reales hace falta subida directa del navegador a Drive.
-- Sin límite de peticiones en `/api/mcp` ni `/oauth/token`.
-- La lista de la compra marca si se pasa de presupuesto, pero no recorta. Lidl sin precios.
-- Faltan en el catálogo: carne picada magra, claras, queso batido 0 %, avena, whey, fruta y verdura fresca (alta manual o escaneo).
-- No hay pantalla para crear comidas ancla ni para editar bloques de horario sueltos (se rehace en el onboarding).
-- Código duplicado menor: ayudantes de validación en `athlete.ts` y `annotations.ts`; lógica de sugerencias repetida en `today.ts` y `training.ts`.
+### Tobillo
 
-## Datos que solo tiene Alex (los pide el onboarding)
+- `ankleRule` solo mira números de dolor: el apunte de hoy (`fit.injury_logs`), el check-in de hoy (`checkins.ankle_pain`) o, si la lesión **no** está cerrada, el último de los 3 días anteriores. El estado `cerrada` de `fit.injuries` solo corta ese arrastre de 3 días. [repo] `athlete.ts:ankleStatusTx`
+- **Trampa 1**: `painDayAfterLegs` sale del check-in del día después de la última pierna y **no mira si la lesión está cerrada**. Un > 3 de entonces restringe hasta la siguiente sesión de pierna.
+- **Trampa 2**: el deslizador del check-in arranca con el último dolor. Con la lesión abierta, guardar sin moverlo vuelve a escribir el mismo valor y la restricción se renueva sola.
+- Cerrar la lesión **sí se puede**, pero está escondido: Ajustes → «Editar en la ficha guiada» → «Ya no molesta: cerrar la lesión». [repo]
+- Hoy, 22-nov, ni Hoy, ni Bienestar, ni Entreno muestran restricción. [prod]
 
-Altura (174 o 164 cm), fecha de nacimiento, peso y cintura de hoy, FC en reposo, hora de acostarse, estado del tobillo, medicación TDAH (sí/no), presupuesto semanal y programa (`torso-pierna-6d` o `gorilangel-bro-split`).
+### Ejercicios sin enlazar
+
+- **70 nombres y 234 series (10,9 %)** sin enlazar tras el import. Muchos son notas pegadas al nombre en la app antigua, incluidas sesiones de sentadilla que hoy no cuentan para el histórico de pierna. [local]
+- El dato de producción puede ser menor si desde entonces se usó `link_exercise_name`. Ya existen `list_unlinked_exercise_names` y `link_exercise_name` (enlazan y guardan el alias), pero solo por MCP. No hay pantalla. [repo]
+
+### MCP
+
+- Son **65 herramientas**, no 66 (el 66 contaba la definición de `defineTool`): 28 de lectura, 24 de registro y 13 de plan. Muse, con `read` + `log`, ve 52. `docs/MUSE.md` dice 62: le faltan `get_nutrition_targets`, `list_unlinked_exercise_names` y `link_exercise_name`. [repo]
+
+## Qué falta (comprobado en el repo)
+
+- No hay CI (`.github/workflows`), ni Playwright, ni `.claude/settings.json` del proyecto.
+- `AGENTS.md` solo trae el bloque de Next.js.
+- `evidencia/` y `docs/ARRANQUE.md` están sin seguimiento y `evidencia/` no está en `.gitignore`.
+- Ficheros grandes: `nutrition.ts` (78,5 KB), `training.ts` (57,5 KB), `athlete.ts` (42,3 KB) y `today.ts` (27,8 KB). [contexto]
+- `api/media/upload` recibe el vídeo entero por `formData()`. Con el límite de 4,5 MB de Vercel, un vídeo real falla. La subida a Drive sí va por trozos. [contexto]
+- Sin límite de peticiones en `/api/mcp` ni en `/oauth/token`. [repo]
+- Plan Hobby: los registros de ejecución duran 1 h y los de peticiones 12 h, sin duración por petición. Para medir tiempos hace falta instrumentar (`Server-Timing`) o medir desde el navegador.
+
+## Cómo medir sin tocar datos
+
+- Tiempos: GET con cabecera `RSC: 1` desde el navegador con sesión iniciada (lo que se hizo hoy).
+- Consultas por flujo: envolver el `Db` de PGlite y contar (`openMemoryDb` + `seedCatalog` + `importLegacy` + `activateProgram`).
+- Base de producción: solo con transacción `read only` y la contraseña puesta por Alex en el momento (como en `scripts/importar-historico.ps1`).
 
 ## Documentos
 
-- Ingeniería inversa, evidencia y decisiones: `CEREBRO/research/_inbox/2026-11-20-sistema-fitness-arquitectura/` (`01_…excels.md`, `02_notebooklm.md`).
-- `docs/MOTOR.md`, `docs/MUSE.md`, `docs/DISENO.md`.
+`docs/MOTOR.md` (motor y PMID), `docs/RUTINAS.md` (programa), `docs/MUSE.md` (MCP), `docs/RELOJ.md` (Health Connect), `docs/DRIVE.md`, `docs/GIMNASIO.md`, `docs/DISENO.md`. Investigación de origen: `CEREBRO/research/_inbox/2026-11-20-sistema-fitness-arquitectura/`.

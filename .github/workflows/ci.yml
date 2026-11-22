@@ -1,0 +1,38 @@
+name: CI
+
+# Lo mismo que hay que pasar en local antes de pedir revisión: tipos, lint, tests y build.
+# Sin secretos: los tests corren sobre PGlite (Postgres embebido) y el build no toca la base.
+# Solo en push: los PR del mismo repo ya muestran el resultado del push de su rama (con pull_request correría dos veces).
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      # Acciones fijadas por SHA (v7.0.1 y v7.1.0, comprobadas el 22-nov-2026): una etiqueta se puede mover, un SHA no.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json # engines.node: la misma versión que Vercel en producción
+          cache: npm
+      - run: npm ci
+      - name: Tipos
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Tests
+        run: npm test
+      - name: Build
+        run: npm run build
