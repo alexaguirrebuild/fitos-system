@@ -14,6 +14,11 @@ const read = <T>(dir: string, file: string): T[] => {
 
 type Ex = Record<string, unknown> & { slug: string };
 
+/** Slugs del catálogo común según las semillas: lo que `seedCatalog` crea o actualiza. */
+export function seedExerciseSlugs(dir: string = SEED_DIR): Set<string> {
+  return new Set([...read<Ex>(dir, "exercises.gorilangel.json"), ...read<Ex>(dir, "exercises.base.json")].map((e) => e.slug));
+}
+
 export async function seedCatalog(db?: Db, dir: string = SEED_DIR) {
   const muscles = read<Record<string, unknown>>(dir, "muscle_groups.json");
   // Si un slug aparece en las dos listas, manda la base (clasificada a mano) y hereda vídeos y notas de la otra.

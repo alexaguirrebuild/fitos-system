@@ -69,9 +69,12 @@ async function main() {
       console.log(m.found
         ? `  ${v("movidas", "movería")} ${m.moved} referencias (${m.sets} series); ${v("borrada", "borraría")} su copia propia: ${m.ownDeleted ? "sí" : "no tiene"}.`
         : "  el origen ya no existe (hecho antes).");
+      if (m.carried.length) console.log(`  Nombres que ${v("pasaron", "pasarían")} al destino: ${m.carried.map((x) => `«${x}»`).join(", ")}.`);
+      if (m.skipped.length) console.log(`  No pasan (ya son de otro ejercicio): ${m.skipped.map((x) => `«${x}»`).join(", ")}.`);
     }
     for (const c of r.commonDeletes)
       console.log(!c.exists ? `  Catálogo común: ${c.slug} ya no está.`
+        : c.inSeed ? `  Catálogo común: ${c.slug} se queda (sigue en el seed).`
         : c.deleted || (dryRun && c.refsLeft === 0) ? `  Catálogo común: ${v("borrado", "borraría")} ${c.slug} (sin referencias).`
         : `  Catálogo común: ${c.slug} se queda (${c.refsLeft} referencias de otros).`);
     for (const e of r.equipment)

@@ -275,6 +275,26 @@ export function aliasOwnerIn(lib: Exercise[], ex: Pick<Exercise, "id" | "slug">,
 export const hasLabel = (ex: Exercise, text: string) => labels(ex).some((l) => normalizeText(l) === normalizeText(text));
 
 /**
+ * Copia propia de un ejercicio común (la crea si no existe). El plan, las series y los vídeos del atleta pasan a apuntar
+ * a la copia, para no partir el historial en dos. Un ejercicio que ya es propio se devuelve tal cual.
+ */
+export async function ownCopyTx(tx: Tx, ex: Exercise, lib?: Exercise[]): Promise<{ exercise: Exercise; cloned: boolean }> {
+  if (ex.userId) return { exercise: ex, cloned: false };
+  const mine = (lib ?? (await loadLibraryTx(tx))).find((e) => e.userId && e.slug === ex.slug);
+  if (mine) return { exercise: mine, cloned: false };
+  const [copy] = await tx.query<{ id: string }>(
+    `insert into fit.exercises (user_id, slug, name, aliases, primary_muscle, secondary_muscles, kind, movement_pattern, equipment,
+       stability, resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues, equipment_type)
+     select auth.uid(), slug, name, aliases, primary_muscle, secondary_muscles, kind, movement_pattern, equipment,
+       stability, resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues, equipment_type
+     from fit.exercises where id = $1 returning id`, [ex.id]);
+  for (const table of ["prescriptions", "workout_sets", "workout_exercises", "videos"])
+    await tx.query(`update fit.${table} set exercise_id = $1 where exercise_id = $2`, [copy.id, ex.id]);
+  await tx.query("update fit.workout_exercises set replaces_exercise_id = $1 where replaces_exercise_id = $2", [copy.id, ex.id]);
+  return { exercise: await getExerciseTx(tx, copy.id), cloned: true };
+}
+
+/**
  * Añade un alias. El catálogo común no se puede tocar, así que un ejercicio común se copia como propio
  * (mismo slug: lo tapa) y el plan, las series y los vídeos del atleta pasan a apuntar a la copia,
  * para no partir el historial en dos.
@@ -285,24 +305,9 @@ export async function addAliasTx(tx: Tx, i: z.output<typeof AddAliasInput>): Pro
   const owner = aliasOwnerIn(lib, ex, i.alias);
   if (owner) throw new AppError("conflicto", `«${i.alias}» ya es el nombre de ${owner.name}.`, { exerciseId: owner.id });
 
-  let cloned = false;
-  if (!ex.userId) {
-    const mine = lib.find((e) => e.userId && e.slug === ex.slug);
-    if (mine) ex = mine;
-    else {
-      const [copy] = await tx.query<{ id: string }>(
-        `insert into fit.exercises (user_id, slug, name, aliases, primary_muscle, secondary_muscles, kind, movement_pattern, equipment,
-           stability, resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues, equipment_type)
-         select auth.uid(), slug, name, aliases, primary_muscle, secondary_muscles, kind, movement_pattern, equipment,
-           stability, resistance_profile, stretch_bias, base_cost, load_step, per_side, warmup_kind, ankle_load, impact, video_urls, cues, equipment_type
-         from fit.exercises where id = $1 returning id`, [ex.id]);
-      for (const table of ["prescriptions", "workout_sets", "workout_exercises", "videos"])
-        await tx.query(`update fit.${table} set exercise_id = $1 where exercise_id = $2`, [copy.id, ex.id]);
-      await tx.query("update fit.workout_exercises set replaces_exercise_id = $1 where replaces_exercise_id = $2", [copy.id, ex.id]);
-      ex = await getExerciseTx(tx, copy.id);
-      cloned = true;
-    }
-  }
+  const own = await ownCopyTx(tx, ex, lib);
+  ex = own.exercise;
+  const cloned = own.cloned;
   if (!hasLabel(ex, i.alias))
     await tx.query("update fit.exercises set aliases = array_append(aliases, $1) where id = $2", [i.alias, ex.id]);
   return { exercise: await getExerciseTx(tx, ex.id), cloned };

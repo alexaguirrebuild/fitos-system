@@ -2,7 +2,7 @@
 #  - fusiona «Remo con pecho apoyado en banco en multipower» en «Remo ancho apoyado en MP» y borra el vacío;
 #  - pone mancuernas a la elevación frontal (en tu copia; el seed cambia la común);
 #  - quita los alias que eran notas (lista en VIDA, columna «quitar»).
-# 1) Simulacro, sin escribir.  2) Pide confirmación.  3) Seed (idempotente).  4) Ajustes.  Repetirlo no hace nada.
+# 1/3 Simulacro, sin escribir (y pide confirmación).  2/3 Seed (idempotente).  3/3 Ajustes.  Repetirlo no hace nada.
 # Pide la contraseña de la base sin mostrarla y no la guarda en ningún sitio.
 param(
   [string]$Email,
