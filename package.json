@@ -16,6 +16,7 @@
     "db:seed": "tsx scripts/seed.mts",
     "import:legacy": "tsx scripts/import-legacy.mts",
     "enlazar:huerfanos": "tsx scripts/enlazar-huerfanos.mts",
+    "ajustar:ejercicios": "tsx scripts/ajustar-ejercicios.mts",
     "hash-password": "tsx scripts/hash-password.ts"
   },
   "dependencies": {

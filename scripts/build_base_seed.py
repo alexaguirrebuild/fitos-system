@@ -89,8 +89,7 @@ ytwl-banco-discos|Y-T-W-L tumbado en banco con discos|deltoides_posterior|trapec
 press-militar-hammer|Press militar en máquina Hammer|deltoides_anterior|triceps|compuesto|empuje_v|maquina|bilateral_guiado|variable|1|2.5|reducido|ninguna|0|press militar hammer;press militar en hammer|discos
 press-militar-mancuernas|Press militar con mancuernas|deltoides_anterior|triceps,deltoides_lateral|compuesto|empuje_v|mancuernas|bilateral_libre|constante|1.1|2|reducido|ninguna|0|press militar mancuernas;press hombro mancuernas
 curl-barra-polea-baja|Curl con barra en polea baja|biceps|antebrazo|aislamiento|flexion_codo|polea|bilateral_guiado|constante|1|2.5|reducido|ninguna|0|curl barra polea;curl polea baja
-elevacion-frontal-banco-inclinado|Elevación frontal tumbado en banco inclinado|deltoides_anterior||aislamiento|flexion_hombro||bilateral_libre|constante|0.8|1.25|no|ninguna|0|elevacion frontal en banco;elevaciones frontales banco inclinado|libre
-remo-pecho-apoyado-banco-multipower|Remo con pecho apoyado en banco en multipower|espalda|biceps,deltoides_posterior|compuesto|traccion_h|multipower|bilateral_guiado|constante|1|2.5|reducido|ninguna|0|remo apoyado banco multipower;remo en t multipower
+elevacion-frontal-banco-inclinado|Elevación frontal tumbado en banco inclinado|deltoides_anterior||aislamiento|flexion_hombro|mancuernas|bilateral_libre|constante|0.8|1.25|no|ninguna|0|elevacion frontal en banco;elevaciones frontales banco inclinado
 remo-con-barra|Remo con barra|espalda|biceps,deltoides_posterior,erectores|compuesto|traccion_h|barra|bilateral_libre|constante|1.3|2.5|completo|baja|0|remo barra;remo libre con barra
 """
 

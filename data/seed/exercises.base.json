@@ -1562,7 +1562,7 @@
   "secondary_muscles": [],
   "kind": "aislamiento",
   "movement_pattern": "flexion_hombro",
-  "equipment": null,
+  "equipment": "mancuernas",
   "stability": "bilateral_libre",
   "resistance_profile": "constante",
   "stretch_bias": false,
@@ -1570,34 +1570,6 @@
   "load_step": 1.25,
   "per_side": false,
   "warmup_kind": "no",
-  "ankle_load": "ninguna",
-  "impact": false,
-  "video_urls": [],
-  "cues": null,
-  "equipment_type": "libre"
- },
- {
-  "slug": "remo-pecho-apoyado-banco-multipower",
-  "name": "Remo con pecho apoyado en banco en multipower",
-  "aliases": [
-   "remo apoyado banco multipower",
-   "remo en t multipower"
-  ],
-  "primary_muscle": "espalda",
-  "secondary_muscles": [
-   "biceps",
-   "deltoides_posterior"
-  ],
-  "kind": "compuesto",
-  "movement_pattern": "traccion_h",
-  "equipment": "multipower",
-  "stability": "bilateral_guiado",
-  "resistance_profile": "constante",
-  "stretch_bias": false,
-  "base_cost": 1.0,
-  "load_step": 2.5,
-  "per_side": false,
-  "warmup_kind": "reducido",
   "ankle_load": "ninguna",
   "impact": false,
   "video_urls": [],
