@@ -30,7 +30,7 @@ test("empezar la sesión de hoy y cambiar un ejercicio sin que se descoloque", a
   await expect(page).toHaveURL(/\/entreno\/[0-9a-f-]{36}$/);
   sessionUrl = page.url();
   await expect(page.getByRole("heading", { name: "Torso A" })).toBeVisible();
-  expect(await order(page)).toEqual(PLAN);
+  await expect.poll(() => order(page)).toEqual(PLAN);
 
   // Abrir el tercero y cambiarlo por la variante Hammer.
   await item(page, "Press militar en máquina").getByRole("button").first().click();
@@ -42,24 +42,29 @@ test("empezar la sesión de hoy y cambiar un ejercicio sin que se descoloque", a
 
   // Misma posición y misma pauta: 3 series de 8-10 a RIR 2.
   const expected = PLAN.map((n) => (n === "Press militar en máquina" ? "Press militar en máquina Hammer" : n));
-  const hammer = item(page, "Press militar en máquina Hammer");
-  await expect(hammer.getByText("En lugar de Press militar en máquina")).toBeVisible();
-  await expect(hammer.getByText("0/3")).toBeVisible();
-  await expect(hammer.getByText(/^8-10\s*reps$/)).toBeVisible();
-  await expect(hammer.getByText("· RIR 2")).toBeVisible();
-  expect(await order(page)).toEqual(expected);
+  const checkSwap = async () => {
+    const hammer = item(page, "Press militar en máquina Hammer");
+    await expect(hammer.getByText("En lugar de Press militar en máquina")).toBeVisible();
+    await expect(hammer.getByText("0/3")).toBeVisible();
+    await expect(hammer.getByText(/^8-10\s*reps$/)).toBeVisible();
+    await expect(hammer.getByText("· RIR 2")).toBeVisible();
+    await expect.poll(() => order(page)).toEqual(expected);
+  };
+  await checkSwap();
 
   // Tras recargar sigue igual: el cambio está guardado, no solo en pantalla.
   await page.reload();
   await expect(page.getByRole("heading", { name: "Torso A" })).toBeVisible();
-  expect(await order(page)).toEqual(expected);
+  await item(page, "Press militar en máquina Hammer").getByRole("button").first().click();
+  await checkSwap();
 });
 
 test("apuntar dos series, cerrar la sesión y verla en el historial", async ({ page }) => {
   expect(sessionUrl, "el test anterior abre la sesión").not.toBe("");
   await page.goto(sessionUrl);
   const banca = item(page, "Press banca");
-  if (!(await banca.getByRole("button", { name: "Hecha" }).isVisible())) await banca.getByRole("button").first().click();
+  // Al abrir, la fila activa es la del siguiente ejercicio con series pendientes: el press banca.
+  await expect(banca.getByRole("button", { name: "Hecha" })).toBeVisible();
 
   // Reps distintas: una serie idéntica en menos de 20 s se toma por doble toque y no se guarda (logSetTx).
   for (const [n, reps] of [[1, "5"], [2, "4"]] as const) {

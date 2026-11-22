@@ -24,5 +24,5 @@ test("añadir un alimento buscando y otro tecleando el código de barras", async
   await expect(page.getByText(/Pechuga de pavo cocida/).first()).toBeVisible();
   await page.getByRole("button", { name: "Añadir", exact: true }).click();
   await expect.poll(() => kcalHoy(page)).toBeGreaterThan(start + 375);
-  await expect(page.getByText("2 apuntes")).toBeVisible();
+  await expect(page.getByText("2 apuntes", { exact: true })).toBeVisible();
 });
