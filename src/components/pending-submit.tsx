@@ -11,9 +11,10 @@ export function PendingSubmit({ children, pendingText, className }: { children: 
   const { pending } = useFormStatus();
   return (
     <>
-      <button type="submit" className={className} disabled={pending} aria-busy={pending}>
+      <button type="submit" className={className} disabled={pending}>
         {pending ? pendingText : children}
       </button>
+      {/* El cambio de texto de un botón no lo anuncia el lector de pantalla; esta región, sí. */}
       <span role="status" className="sr-only">{pending ? pendingText : ""}</span>
     </>
   );
