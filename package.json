@@ -17,7 +17,8 @@
     "import:legacy": "tsx scripts/import-legacy.mts",
     "enlazar:huerfanos": "tsx scripts/enlazar-huerfanos.mts",
     "ajustar:ejercicios": "tsx scripts/ajustar-ejercicios.mts",
-    "hash-password": "tsx scripts/hash-password.ts"
+    "hash-password": "tsx scripts/hash-password.ts",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.17",
@@ -30,6 +31,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^22.20.5",
     "@types/pg": "^8.23.1",

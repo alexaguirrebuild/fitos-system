@@ -7,6 +7,7 @@ App personal de Alex: entreno con progresión, nutrición On/Off, cardio y reloj
 | Comando | Para qué |
 |---|---|
 | `npm test` | 301 tests sobre PGlite (motor, RLS, servicios, OAuth, MCP). Sin Docker ni credenciales |
+| `npm run build` y `npm run e2e` | 5 flujos diarios con Playwright (Hoy, entreno con cambio de ejercicio, check-in, comida) sobre una PGlite nueva en `.data/e2e`. La primera vez: `npx playwright install chromium` |
 | `npm run typecheck` · `npm run lint` · `npm run build` | Lo mismo que corre la CI (`.github/workflows/ci.yml`) |
 | `npm run dev` | Local con PGlite en `.data/pglite` y `AUTH_MODE=dev` |
 | `npm run db:seed` · `npm run import:legacy` | Catálogo e histórico. Contra producción, solo con OK de Alex |
