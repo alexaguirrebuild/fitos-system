@@ -6,6 +6,7 @@ import { IconScan, IconSearch, IconSwap } from "@/components/icons";
 import { Sheet } from "@/components/sheet";
 import { Stepper } from "@/components/stepper";
 import { scaleMacros } from "@/engine/nutrition";
+import { backCameras, pickMainBackCamera, type Cam } from "@/lib/camera";
 import { day, int, num, parseNum } from "@/lib/format";
 import { isNetworkError, queueAdd } from "@/lib/offline-queue";
 import { useQueue } from "@/lib/use-queue";
@@ -307,11 +308,32 @@ function Repeat({ today, templates, yesterday, yesterdayDate, onDone }: {
 
 /* ───────────────────────── Escáner ───────────────────────── */
 
+/** La cámara que eligió Alex con «Cambiar de cámara». Si no hay, la principal. */
+const CAM_KEY = "sf.scanner.cam";
+function loadCam(): string | null {
+  try {
+    return localStorage.getItem(CAM_KEY);
+  } catch {
+    return null;
+  }
+}
+function saveCam(id: string | null) {
+  try {
+    if (id) localStorage.setItem(CAM_KEY, id);
+    else localStorage.removeItem(CAM_KEY);
+  } catch {
+    /* sin almacenamiento, se elige cada vez */
+  }
+}
+
 function Scanner({ onFood, onMissing }: { onFood: (f: Food) => void; onMissing: (code: string) => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<"iniciando" | "camara" | "sin_soporte" | "sin_permiso" | "buscando">("iniciando");
   const [error, setError] = useState<string | null>(null);
+  const [cams, setCams] = useState<Cam[]>([]);
+  const [camId, setCamId] = useState<string | null>(null);
+  const [activeCam, setActiveCam] = useState<string | null>(null);
   const busy = useRef(false);
 
   const lookup = useCallback(async (raw: string) => {
@@ -339,15 +361,46 @@ function Scanner({ onFood, onMissing }: { onFood: (f: Food) => void; onMissing: 
     let timer: number | undefined;
     let alive = true;
     const Ctor = (window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => Detector }).BarcodeDetector;
+    const open = (id: string | null) =>
+      navigator.mediaDevices.getUserMedia({ video: id ? { deviceId: { exact: id } } : { facingMode: { ideal: "environment" } }, audio: false });
     (async () => {
       if (!Ctor || !navigator.mediaDevices?.getUserMedia) return setStatus("sin_soporte");
+      let s: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        try {
+          s = await open(camId);
+        } catch (e) {
+          if (!camId) throw e;
+          saveCam(null); // la cámara guardada ya no existe: vuelve a la trasera por defecto
+          s = await open(null);
+        }
       } catch {
         return alive && setStatus("sin_permiso");
       }
-      if (!alive || !video.current) return stream.getTracks().forEach((t) => t.stop());
-      video.current.srcObject = stream;
+      stream = s;
+      if (!alive) return s.getTracks().forEach((t) => t.stop());
+      const track = s.getVideoTracks()[0];
+      const current = track?.getSettings().deviceId ?? null;
+      if (camId === null) {
+        // Con el permiso ya hay etiquetas. Si el navegador abrió la gran angular (0,5x), que no enfoca de cerca, se cambia a la principal.
+        const backs = backCameras(await navigator.mediaDevices.enumerateDevices().catch(() => []));
+        if (!alive) return s.getTracks().forEach((t) => t.stop());
+        setCams(backs);
+        const saved = loadCam();
+        const pick = backs.find((c) => c.deviceId === saved) ?? pickMainBackCamera(backs);
+        if (pick && current && pick.deviceId !== current) {
+          s.getTracks().forEach((t) => t.stop());
+          stream = null;
+          return setCamId(pick.deviceId);
+        }
+      }
+      setActiveCam(current);
+      const caps = (track?.getCapabilities?.() ?? {}) as { focusMode?: string[] };
+      if (caps.focusMode?.includes("continuous")) {
+        await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as unknown as MediaTrackConstraintSet] }).catch(() => undefined);
+      }
+      if (!alive || !video.current) return s.getTracks().forEach((t) => t.stop());
+      video.current.srcObject = s;
       await video.current.play().catch(() => undefined);
       setStatus("camara");
       const detector = new Ctor({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
@@ -366,7 +419,16 @@ function Scanner({ onFood, onMissing }: { onFood: (f: Food) => void; onMissing: 
       if (timer) window.clearInterval(timer);
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [lookup]);
+  }, [lookup, camId]);
+
+  const camIndex = cams.findIndex((c) => c.deviceId === activeCam);
+  const nextCam = () => {
+    const next = cams[(camIndex + 1) % cams.length];
+    if (!next) return;
+    saveCam(next.deviceId);
+    setStatus("iniciando");
+    setCamId(next.deviceId);
+  };
 
   return (
     <div>
@@ -379,6 +441,11 @@ function Scanner({ onFood, onMissing }: { onFood: (f: Food) => void; onMissing: 
       <p className="small muted mt-2" role="status">
         {status === "iniciando" ? "Abriendo la cámara…" : status === "camara" ? "Apunta al código. Se lee solo." : status === "buscando" ? "Buscando el producto…" : status === "sin_permiso" ? "Sin permiso de cámara. Teclea el código." : "Este navegador no lee códigos con la cámara. Teclea el código."}
       </p>
+      {cams.length > 1 && (status === "camara" || status === "iniciando") ? (
+        <button type="button" className="link small mt-1" onClick={nextCam}>
+          Cambiar de cámara ({camIndex >= 0 ? camIndex + 1 : 1} de {cams.length})
+        </button>
+      ) : null}
       <form
         className="mt-3 flex items-end gap-2"
         onSubmit={(e) => {
