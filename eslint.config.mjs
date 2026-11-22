@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Worktrees de otras sesiones (copias enteras del repo con su .next) y datos locales.
+    ".claude/**",
+    ".data/**",
+    "evidencia/**",
   ]),
 ]);
 
